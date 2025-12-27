@@ -499,6 +499,29 @@ def get_balance(account):
     balance = float(user_state["withdrawable"])
     print(f'Available balance: ${balance:,.2f}')
     return balance
+def get_available_balance(address):
+    """
+    Get available (withdrawable) USDC balance for an address
+    
+    Args:
+        address (str): HyperLiquid wallet address (e.g., from ACCOUNT_ADDRESS env var)
+    
+    Returns:
+        float: Available balance in USD
+    """
+    try:
+        info = Info(constants.MAINNET_API_URL, skip_ws=True)
+        user_state = info.user_state(address)
+        
+        # Get withdrawable balance (free balance not used in positions)
+        balance = float(user_state["withdrawable"])
+        
+        print(f'💰 Available balance for {address[:6]}...{address[-4:]}: ${balance:,.2f}')
+        return balance
+        
+    except Exception as e:
+        print(f'❌ Error getting available balance: {e}')
+        return 0.0
 
 def get_all_positions(account):
     """Get all open positions"""
