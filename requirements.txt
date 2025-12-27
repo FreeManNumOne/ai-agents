@@ -96,7 +96,7 @@ exceptiongroup==1.2.0
 executing==2.0.1
 fake-useragent==2.2.0
 fast-stark-crypto==0.3.8
-fastapi==0.115.5
+fastapi>=0.118
 fastecdsa==2.3.2
 faster-whisper==1.1.1
 fastjsonschema==2.19.1
