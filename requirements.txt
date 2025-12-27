@@ -458,7 +458,7 @@ web3==6.20.1
 webcolors==1.13
 webdriver-manager==4.0.2
 webencodings==0.5.1
-websocket-client==1.6.4
+websocket-client
 websockets
 Werkzeug==3.0.2
 wget==3.2
