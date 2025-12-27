@@ -5,12 +5,12 @@ aiohappyeyeballs==2.6.1
 aiohttp==3.10.11
 aiohttp-retry==2.9.1
 aiosignal==1.4.0
-anchorpy
+anchorpy==0.20.1
 anchorpy-core
 annotated-types==0.7.0
 anthropic
 anyio
-apischema==0.17.5
+apischema
 appnope==0.1.4
 APScheduler==3.11.0
 argon2-cffi==23.1.0
@@ -336,9 +336,9 @@ PyRect==0.2.0
 PyScreeze==0.1.30
 PySocks
 pytesseract==0.3.13
-pytest==8.4.1
-pytest-asyncio==1.1.0
-pytest-mock==3.14.1
+pytest
+pytest-asyncio
+pytest-mock
 python-dateutil==2.8.2
 python-dotenv==1.0.0
 python-json-logger==2.0.7
@@ -398,7 +398,7 @@ SpeechRecognition==3.10.4
 sse-starlette==2.2.1
 stack-data==0.6.3
 stanio==0.5.1
-starknet-py==0.27.0
+starknet-py
 starlette==0.41.3
 statsmodels==0.14.2
 streamlink==7.5.0
@@ -461,7 +461,7 @@ webcolors==1.13
 webdriver-manager==4.0.2
 webencodings==0.5.1
 websocket-client
-websockets
+websockets==10.4
 Werkzeug
 wget==3.2
 whisper==1.1.10
