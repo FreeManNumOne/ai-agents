@@ -390,13 +390,34 @@ def get_current_price(symbol):
     mid_price = (ask + bid) / 2
     return mid_price
 
-def get_account_value(account):
-    """Get total account value"""
-    info = Info(constants.MAINNET_API_URL, skip_ws=True)
-    user_state = info.user_state(account)
-    account_value = float(user_state["marginSummary"]["accountValue"])
-    print(f'Account value: ${account_value:,.2f}')
-    return account_value
+def get_account_value(address):
+    """
+    Get total account value (equity) for an address
+    Args:
+        address (str or Account): HyperLiquid wallet address or Account object
+    Returns:
+        float: Total account value including positions
+    """
+    try:
+        info = Info(constants.MAINNET_API_URL, skip_ws=True)
+        
+        # Handle both string addresses and Account objects
+        if hasattr(address, 'address'):
+            # It's an Account object, extract the address
+            address_str = address.address
+        else:
+            # It's already a string
+            address_str = address
+        
+        user_state = info.user_state(address_str)
+        account_value = float(user_state["marginSummary"]["accountValue"])
+        
+        print(f'💎 Total equity for {address_str[:6]}...{address_str[-4:]}: ${account_value:,.2f}')
+        return account_value
+        
+    except Exception as e:
+        print(f'❌ Error getting account value: {e}')
+        return 0.0
 
 def market_buy(symbol, usd_size, account, slippage=None):
     """Market buy using HyperLiquid"""
@@ -490,22 +511,38 @@ def close_position(symbol, account):
     return kill_switch(symbol, account)
 
 # Additional helper functions for agents
-def get_balance(account):
-    """Get USDC balance"""
-    info = Info(constants.MAINNET_API_URL, skip_ws=True)
-    user_state = info.user_state(account.address)
-
-    # Get withdrawable balance (free balance)
-    balance = float(user_state["withdrawable"])
-    print(f'Available balance: ${balance:,.2f}')
-    return balance
+def get_balance(address):
+    """
+    Get USDC balance (alias for get_available_balance for backward compatibility)
+    Args:
+        address (str or Account): HyperLiquid wallet address or Account object
+    Returns:
+        float: Available balance in USD
+    """
+    try:
+        info = Info(constants.MAINNET_API_URL, skip_ws=True)
+        
+        # Handle both string addresses and Account objects
+        if hasattr(address, 'address'):
+            address_str = address.address
+        else:
+            address_str = address
+        
+        user_state = info.user_state(address_str)
+        balance = float(user_state["withdrawable"])
+        
+        print(f'💵 Available balance: ${balance:,.2f}')
+        return balance
+        
+    except Exception as e:
+        print(f'❌ Error getting balance: {e}')
+        return 0.0
+      
 def get_available_balance(address):
     """
     Get available (withdrawable) USDC balance for an address
-    
     Args:
         address (str): HyperLiquid wallet address (e.g., from ACCOUNT_ADDRESS env var)
-    
     Returns:
         float: Available balance in USD
     """
@@ -523,23 +560,42 @@ def get_available_balance(address):
         print(f'❌ Error getting available balance: {e}')
         return 0.0
 
-def get_all_positions(account):
-    """Get all open positions"""
-    info = Info(constants.MAINNET_API_URL, skip_ws=True)
-    user_state = info.user_state(account.address)
-
-    positions = []
-    for position in user_state["assetPositions"]:
-        if float(position["position"]["szi"]) != 0:
-            positions.append({
-                'symbol': position["position"]["coin"],
-                'size': float(position["position"]["szi"]),
-                'entry_price': float(position["position"]["entryPx"]),
-                'pnl_percent': float(position["position"]["returnOnEquity"]) * 100,
-                'is_long': float(position["position"]["szi"]) > 0
-            })
-
-    return positions
+def get_all_positions(address):
+    """
+    Get all open positions for an address
+    Args:
+        address (str or Account): HyperLiquid wallet address or Account object
+    Returns:
+        list: List of position dictionaries
+    """
+    try:
+        info = Info(constants.MAINNET_API_URL, skip_ws=True)
+        
+        # Handle both string addresses and Account objects
+        if hasattr(address, 'address'):
+            address_str = address.address
+        else:
+            address_str = address
+        user_state = info.user_state(address_str)
+        
+        positions = []
+        for position in user_state["assetPositions"]:
+            pos_size = float(position["position"]["szi"])
+            if pos_size != 0:
+                positions.append({
+                    'symbol': position["position"]["coin"],
+                    'size': pos_size,
+                    'entry_price': float(position["position"]["entryPx"]),
+                    'pnl_percent': float(position["position"]["returnOnEquity"]) * 100,
+                    'is_long': pos_size > 0
+                })
+        
+        print(f'📊 Found {len(positions)} open position(s)')
+        return positions
+        
+    except Exception as e:
+        print(f'❌ Error getting positions: {e}')
+        return []
 
 # ============================================================================
 # ADDITIONAL HELPER FUNCTIONS (from nice_funcs_hl.py)
