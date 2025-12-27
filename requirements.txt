@@ -197,7 +197,7 @@ libclang==18.1.1
 lighter-v1-python
 lightgbm==4.6.0
 litellm==1.40.8
-llvmlite==0.41.1
+llvmlite
 loky==3.4.1
 lru-dict==1.2.0
 lxml==5.2.1
