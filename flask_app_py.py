@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🌙 Moon Dev's Trading Dashboard Backend
+Trading Dashboard Backend
 Production-ready Flask app for HyperLiquid trading
 """
 import os
