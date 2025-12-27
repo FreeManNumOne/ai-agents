@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> AI Trading Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header with Controls -->
+        <header class="header">
+            <div class="header-left">
+                <h1>🌙 Trading Dashboard</h1>
+                <span class="agent-badge" id="agent-badge">Ready</span>
+            </div>
+            <div class="header-right">
+                <span class="timestamp" id="timestamp">--:--:--</span>
+                <button class="btn btn-run" id="run-btn" onclick="runAgent()">▶ RUN</button>
+                <button class="btn btn-stop" id="stop-btn" onclick="stopAgent()" style="display:none;">⏹ STOP</button>
+            </div>
+        </header>
+
+        <!-- Account Summary -->
+        <div class="account-summary">
+            <div class="summary-item">
+                <span class="label">Account Balance</span>
+                <span class="value" id="balance">$0.00</span>
+                <span class="sublabel">Free USDC</span>
+            </div>
+            <div class="summary-item">
+                <span class="label">Total Equity</span>
+                <span class="value" id="equity">$0.00</span>
+                <span class="sublabel">Including Positions</span>
+            </div>
+            <div class="summary-item">
+                <span class="label">P&L</span>
+                <span class="value pnl" id="pnl">$0.00</span>
+                <span class="sublabel" id="pnl-pct">0.00%</span>
+            </div>
+            <div class="summary-item">
+                <span class="label">Exchange</span>
+                <span class="value" id="exchange">HyperLiquid</span>
+                <span class="sublabel" id="status">Connected</span>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Panel: Positions & Trades -->
+            <div class="panel">
+                <!-- Positions -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Open Positions</h2>
+                        <span class="badge" id="position-count">0</span>
+                    </div>
+                    <div class="positions-container" id="positions">
+                        <div class="empty-state">No open positions</div>
+                    </div>
+                </div>
+
+                <!-- Recent Trades -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Recent Trades</h2>
+                    </div>
+                    <div class="trades-container" id="trades">
+                        <div class="empty-state">No recent trades</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Console -->
+            <div class="console-panel">
+                <div class="card console-card">
+                    <div class="card-header">
+                        <h2>Agent Console</h2>
+                        <button class="btn-small" id="clear-console" onclick="clearConsole()">Clear</button>
+                    </div>
+                    <div class="console-output" id="console">
+                        <div class="console-line">🌐 Dashboard initialized...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Auto-updates every 10 seconds • 60-minute trading cycles • HyperLiquid Exchange</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
