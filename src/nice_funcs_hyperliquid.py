@@ -1144,22 +1144,7 @@ def close_complete_position(symbol, account, slippage=0.01):
         def colored(text, color): return text
 
     print(f'{colored(f"📉 Closing complete position for {symbol}...", "yellow")}')
-    # Log to dashboard
-        try:
-            import sys
-            from pathlib import Path
-            parent_dir = Path(__file__).parent
-            if str(parent_dir) not in sys.path:
-                sys.path.insert(0, str(parent_dir))
-            from trading_app import add_console_log
-            
-            side = "LONG" if is_long else "SHORT"
-            add_console_log(f"✔️ Closed complete {side} {symbol}", "trade")
-        except Exception:
-            pass
-        
-        return True
-
+    
     # 1. Get current position size & direction
     pos_data = get_position(symbol, account)
     _, im_in_pos, pos_size, _, _, _, is_long = pos_data
@@ -1182,6 +1167,21 @@ def close_complete_position(symbol, account, slippage=0.01):
             market_buy(symbol, pos_size, slippage=slippage, account=account)
             
         print(f'{colored("✅ Position closed successfully!", "green")}')
+        
+        # Log to dashboard
+        try:
+            import sys
+            from pathlib import Path
+            parent_dir = Path(__file__).parent
+            if str(parent_dir) not in sys.path:
+                sys.path.insert(0, str(parent_dir))
+            from trading_app import add_console_log
+            
+            side = "LONG" if is_long else "SHORT"
+            add_console_log(f"✔️ Closed complete {side} {symbol}", "trade")
+        except Exception:
+            pass
+        
         return True
 
     except Exception as e:
