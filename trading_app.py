@@ -54,7 +54,8 @@ AGENT_STATE_FILE = DATA_DIR / "agent_state.json"
 agent_thread = None
 agent_running = False  # Always start stopped - never auto-start
 stop_agent_flag = False
-shutdown_in_progress = False  # ADD THIS
+shutdown_in_progress = False  # Shutdown Flag
+agent_executing = False  # Agent Trade Cycle Active Flag - True when actively analyzing, False when waiting
 
 # Symbols list (for trading agent reference)
 SYMBOLS = [
@@ -460,6 +461,10 @@ def run_trading_agent():
         try:
             add_console_log(f"Running analysis cycle", "info")
             
+            # ADD THIS - Set execution flag
+            global agent_executing
+            agent_executing = True
+            
             # Capture start time
             cycle_start = time.time()
             
@@ -493,6 +498,9 @@ def run_trading_agent():
             cycle_duration = int(time.time() - cycle_start)
             
             add_console_log(f"Cycle complete ({cycle_duration}s)", "success")
+
+            # Clear execution flag
+            agent_executing = False
             
             # Get recommendations summary
             if hasattr(agent, 'recommendations_df') and len(agent.recommendations_df) > 0:
@@ -534,6 +542,14 @@ def index():
     """Serve the main dashboard"""
     return render_template('index.html')
 
+@app.route('/api/agent-status')
+def get_agent_status():
+    """Lightweight status check - returns if agent is actively executing"""
+    return jsonify({
+        "running": agent_running,
+        "executing": agent_executing,
+        "timestamp": datetime.now().isoformat()
+    })
 
 @app.route('/api/data')
 def get_data():
