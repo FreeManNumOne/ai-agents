@@ -362,6 +362,15 @@ def save_trade(trade_data):
     except Exception as e:
         print(f"⚠️ Error saving trade: {e}")
 
+def log_position_open(symbol, side, size_usd):
+    """Log when a position is opened"""
+    try:
+        emoji = "📈" if side == "LONG" else "📉"
+        message = f"{emoji} Opened {side} {symbol} ${size_usd:.2f}"
+        add_console_log(message, "trade")
+    except Exception as e:
+        print(f"⚠️ Error logging position open: {e}")
+
 
 def add_console_log(message, level="info"):
     """
