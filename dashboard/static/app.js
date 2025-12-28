@@ -31,9 +31,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // Main update function
-
+// Smart update function - pauses heavy queries during agent execution
 async function updateDashboard() {
     try {
+        // First check if agent is actively executing
+        const statusResponse = await fetch('/api/agent-status');
+        const agentStatus = await statusResponse.json();
+        
+        // If agent is actively executing, do lightweight update
+        if (agentStatus.executing) {
+            console.log('[Dashboard] Agent executing - lightweight update only');
+            
+            // Only update timestamp and agent badge (no API calls)
+            updateTimestamp();
+            updateAgentBadge(agentStatus.running);
+            
+            return; // Skip heavy updates
+        }
+        
+        // Agent is idle - do full update
         const response = await fetch('/api/data');
         
         if (!response.ok) {
@@ -44,18 +60,15 @@ async function updateDashboard() {
         
         const data = await response.json();
         
-        // Log successful update (console only, not UI)
-        console.log('[Dashboard] Updated at', new Date().toLocaleTimeString());
+        console.log('[Dashboard] Full update at', new Date().toLocaleTimeString());
         
-        // Update metrics
+        // Update all metrics
         updateBalance(data.account_balance, data.total_equity);
         updatePnL(data.pnl);
         updateStatus(data.status, data.agent_running);
         updateExchange(data.exchange);
         updateTimestamp();
         updatePositions(data.positions);
-        
-        // Update agent badge
         updateAgentBadge(data.agent_running);
         
         // Fetch trades
@@ -118,22 +131,46 @@ function updateTimestamp() {
     document.getElementById('timestamp').textContent = timeString;
 }
 
-// Update agent badge
-function updateAgentBadge(isRunning) {
+// Update agent badge with execution state
+async function updateAgentBadge(isRunning) {
     const badge = document.getElementById('agent-badge');
     const runBtn = document.getElementById('run-btn');
     const stopBtn = document.getElementById('stop-btn');
     
-    if (isRunning) {
-        badge.textContent = 'Running';
-        badge.className = 'agent-badge running';
-        runBtn.style.display = 'none';
-        stopBtn.style.display = 'inline-block';
-    } else {
-        badge.textContent = 'Ready';
-        badge.className = 'agent-badge ready';
-        runBtn.style.display = 'inline-block';
-        stopBtn.style.display = 'none';
+    // Check if actively executing
+    try {
+        const statusResponse = await fetch('/api/agent-status');
+        const status = await statusResponse.json();
+        
+        if (status.executing) {
+            badge.textContent = 'Analyzing';
+            badge.className = 'agent-badge running';
+            runBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+        } else if (isRunning) {
+            badge.textContent = 'Waiting';
+            badge.className = 'agent-badge running';
+            runBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+        } else {
+            badge.textContent = 'Ready';
+            badge.className = 'agent-badge ready';
+            runBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+        }
+    } catch (error) {
+        // Fallback to simple logic
+        if (isRunning) {
+            badge.textContent = 'Running';
+            badge.className = 'agent-badge running';
+            runBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+        } else {
+            badge.textContent = 'Ready';
+            badge.className = 'agent-badge ready';
+            runBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+        }
     }
 }
 
