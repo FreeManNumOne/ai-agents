@@ -355,6 +355,19 @@ def kill_switch(symbol, account):
             print(colored(f'❌ Error closing subposition: {e}', 'red'))
 
     print(colored(f'✅ Kill switch executed - all {symbol} subpositions closed', 'green'))
+    # Log to Dashboard
+    try:
+        import sys
+        from pathlib import Path
+        parent_dir = Path(__file__).parent
+        if str(parent_dir) not in sys.path:
+            sys.path.insert(0, str(parent_dir))
+        from trading_app import add_console_log
+        
+        add_console_log(f"\n✔️ Closed {symbol} position", "trade")
+    except Exception:
+        pass
+    
     return order_result
 
 def pnl_close(symbol, target, max_loss, account):
@@ -421,7 +434,7 @@ def get_account_value(address):
 
 def market_buy(symbol, usd_size, account, slippage=None):
     """Market buy using HyperLiquid"""
-    print(colored(f'🛒 Market BUY {symbol} for ${usd_size}', 'green'))
+    print(colored(f'📈 Market BUY {symbol} for ${usd_size}', 'green'))
 
     # Get current ask price
     ask, bid, _ = ask_bid(symbol)
@@ -457,6 +470,20 @@ def market_buy(symbol, usd_size, account, slippage=None):
     order_result = exchange.order(symbol, True, pos_size, buy_price, {"limit": {"tif": "Ioc"}}, reduce_only=False)
 
     print(colored(f'✅ Market buy executed: {pos_size} {symbol} at ${buy_price}', 'green'))
+    # Log to dashboard
+    try:
+        import sys
+        from pathlib import Path
+        parent_dir = Path(__file__).parent
+        if str(parent_dir) not in sys.path:
+            sys.path.insert(0, str(parent_dir))
+        from trading_app import add_console_log
+        
+        position_value = pos_size * buy_price
+        add_console_log(f"📈 LONG {symbol} for ${position_value:.2f}", "trade")
+    except Exception:
+        pass
+    
     return order_result
 
 def market_sell(symbol, usd_size, account, slippage=None):
@@ -497,6 +524,19 @@ def market_sell(symbol, usd_size, account, slippage=None):
     order_result = exchange.order(symbol, False, pos_size, sell_price, {"limit": {"tif": "Ioc"}}, reduce_only=False)
 
     print(colored(f'✅ Market sell executed: {pos_size} {symbol} at ${sell_price}', 'red'))
+    try:
+        import sys
+        from pathlib import Path
+        parent_dir = Path(__file__).parent
+        if str(parent_dir) not in sys.path:
+            sys.path.insert(0, str(parent_dir))
+        from trading_app import add_console_log
+        
+        position_value = pos_size * sell_price
+        add_console_log(f"📉 SHORT {symbol} for ${position_value:.2f}", "trade")
+    except Exception:
+        pass
+    
     return order_result
 
 def close_position(symbol, account):
@@ -1104,6 +1144,21 @@ def close_complete_position(symbol, account, slippage=0.01):
         def colored(text, color): return text
 
     print(f'{colored(f"📉 Closing complete position for {symbol}...", "yellow")}')
+    # Log to dashboard
+        try:
+            import sys
+            from pathlib import Path
+            parent_dir = Path(__file__).parent
+            if str(parent_dir) not in sys.path:
+                sys.path.insert(0, str(parent_dir))
+            from trading_app import add_console_log
+            
+            side = "LONG" if is_long else "SHORT"
+            add_console_log(f"✔️ Closed complete {side} {symbol}", "trade")
+        except Exception:
+            pass
+        
+        return True
 
     # 1. Get current position size & direction
     pos_data = get_position(symbol, account)
