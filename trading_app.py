@@ -52,6 +52,17 @@ agent_thread = None
 agent_running = False  # Always start stopped - never auto-start
 stop_agent_flag = False
 
+# Symbols list (for trading agent reference)
+SYMBOLS = [
+    'ETH',        # Ethereum
+    'BTC',        # Bitcoin
+    'SOL',        # Solana
+    'AAVE',       # Aave
+    'LINK',       # Chainlink
+    'LTC',        # Litecoin
+    'FARTCOIN',   # FartCoin
+]
+
 # ============================================================================
 # IMPORT TRADING FUNCTIONS (with fallback)
 # ============================================================================
@@ -163,62 +174,119 @@ def get_account_data():
 
 
 def get_positions_data():
-    """Fetch live open positions from HyperLiquid (ignore saved trades)"""
+    """Fetch ALL live open positions from HyperLiquid"""
     if not EXCHANGE_CONNECTED or n is None:
-        # Return empty list if exchange is disconnected or in demo mode
+        print("⚠️ Exchange not connected or nice_funcs not loaded")
         return []
 
     try:
-        # Get the Account object
+        # Get account
         account = _get_account()
-
-        # Import symbols from config, fallback to defaults
-        try:
-            from src.config import HYPERLIQUID_SYMBOLS as SYMBOLS
-        except ImportError:
-            SYMBOLS = ['BTC', 'ETH', 'SOL', 'LTC']
-
+        address = os.getenv("ACCOUNT_ADDRESS", account.address)
+        
+        print(f"\n{'='*60}")
+        print(f"🔍 Fetching positions for address: {address}")
+        print(f"{'='*60}")
+        
+        # Import HyperLiquid SDK
+        from hyperliquid.info import Info
+        from hyperliquid.utils import constants
+        
+        # Connect to HyperLiquid Info API
+        info = Info(constants.MAINNET_API_URL, skip_ws=True)
+        user_state = info.user_state(address)
+        
         positions = []
-
-        for symbol in SYMBOLS:
+        
+        # Check if assetPositions exists
+        if "assetPositions" not in user_state:
+            print("❌ No 'assetPositions' field in user_state")
+            print(f"Available fields: {list(user_state.keys())}")
+            return []
+        
+        asset_positions = user_state["assetPositions"]
+        print(f"📊 Found {len(asset_positions)} asset position entries")
+        
+        # Loop through ALL asset positions
+        for idx, position in enumerate(asset_positions):
             try:
-                # Fetch live position from the exchange
-                pos_data = n.get_position(symbol, account)
-                # Unpack the returned tuple
-                _, im_in_pos, pos_size, _, entry_px, pnl_perc, is_long = pos_data
-
-                if im_in_pos and pos_size != 0:
-                    # Fetch current mark price
-                    try:
-                        ask, bid, _ = n.ask_bid(symbol)
-                        mark_price = (ask + bid) / 2
-                    except Exception as price_err:
-                        print(f"⚠️ Error fetching mark price for {symbol}: {price_err}")
-                        # Fallback to entry price if market data unavailable
-                        mark_price = float(entry_px)
-                    
-                    # Calculate position value in USD
-                    position_value = abs(float(pos_size)) * mark_price
-                    positions.append({
-                        "symbol": symbol,
-                        "size": float(pos_size),
-                        "entry_price": float(entry_px),
-                        "mark_price": float(mark_price),           # NEW
-                        "position_value": float(position_value),   # NEW
-                        "pnl_percent": float(pnl_perc),
-                        "side": "LONG" if is_long else "SHORT"
-                    })
-
-            except Exception:
-                # Skip symbols with no position or errors
+                raw_pos = position.get("position", {})
+                symbol = raw_pos.get("coin", "Unknown")
+                pos_size = float(raw_pos.get("szi", 0))
+                
+                print(f"\n   Position {idx + 1}: {symbol} | Size: {pos_size}")
+                
+                # Only include non-zero positions
+                if pos_size == 0:
+                    print(f"   ⏭️  Skipping {symbol} (size = 0)")
+                    continue
+                
+                # Get position details
+                entry_px = float(raw_pos.get("entryPx", 0))
+                pnl_perc = float(raw_pos.get("returnOnEquity", 0)) * 100
+                is_long = pos_size > 0
+                side = "LONG" if is_long else "SHORT"
+                
+                print(f"   📍 {symbol} {side} position detected!")
+                print(f"      Entry: ${entry_px:.2f} | PnL: {pnl_perc:.2f}%")
+                
+                # Fetch current mark price
+                try:
+                    ask, bid, _ = n.ask_bid(symbol)
+                    mark_price = (ask + bid) / 2
+                    print(f"      Mark price: ${mark_price:.2f}")
+                except Exception as price_err:
+                    print(f"      ⚠️ Could not fetch mark price: {price_err}")
+                    mark_price = entry_px
+                    print(f"      Using entry price as fallback: ${mark_price:.2f}")
+                
+                # Calculate position value in USD
+                position_value = abs(pos_size) * mark_price
+                
+                print(f"      Position value: ${position_value:.2f}")
+                
+                # Add to positions array
+                position_obj = {
+                    "symbol": symbol,
+                    "size": float(pos_size),
+                    "entry_price": float(entry_px),
+                    "mark_price": float(mark_price),
+                    "position_value": float(position_value),
+                    "pnl_percent": float(pnl_perc),
+                    "side": side
+                }
+                
+                positions.append(position_obj)
+                
+                print(f"   ✅ Added to positions array: {symbol} {side}")
+                
+            except Exception as pos_err:
+                print(f"   ❌ Error processing position {idx + 1}: {pos_err}")
+                import traceback
+                traceback.print_exc()
                 continue
-
+        
+        print(f"\n{'='*60}")
+        print(f"✅ Total positions to return: {len(positions)}")
+        print(f"{'='*60}\n")
+        
+        # Log positions for debugging
+        if positions:
+            for pos in positions:
+                print(f"   • {pos['symbol']} {pos['side']}: ${pos['position_value']:.2f}")
+        else:
+            print("   (No open positions)")
+        
         return positions
 
     except Exception as e:
-        print(f"❌ Error fetching positions from exchange: {e}")
+        print(f"\n{'='*60}")
+        print(f"❌ CRITICAL ERROR in get_positions_data()")
+        print(f"{'='*60}")
+        print(f"Error: {e}")
         import traceback
         traceback.print_exc()
+        print(f"{'='*60}\n")
         return []
 
 

@@ -6,27 +6,46 @@ let updateInterval;
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Dashboard initializing...');
     
+    // Load saved timezone preference
+    const savedTimezone = localStorage.getItem('preferred_timezone') || 'local';
+    const timezoneSelect = document.getElementById('timezone-select');
+    if (timezoneSelect) {
+        timezoneSelect.value = savedTimezone;
+    }
+    
     // Load agent state first
     loadAgentState();
     
     // Initial updates
     updateDashboard();
     updateConsole();
+    updateTimestamp(); // Initialize timestamp with saved timezone
     
     // Set up intervals
-    updateInterval = setInterval(updateDashboard, 15000); // Update every 15 seconds
-    setInterval(updateConsole, 5000); // Update console every 5 seconds
+    updateInterval = setInterval(updateDashboard, 10000);
+    setInterval(updateConsole, 5000);
+    setInterval(updateTimestamp, 1000); // Update timestamp every second
     
     console.log('✅ Dashboard ready - auto-refresh enabled');
 });
 
+
 // Main update function
+
 async function updateDashboard() {
     try {
         const response = await fetch('/api/data');
+        
+        if (!response.ok) {
+            console.error('API returned error:', response.status);
+            setStatusOffline();
+            return;
+        }
+        
         const data = await response.json();
         
-        if (!response.ok) throw new Error('API error');
+        // Log successful update (console only, not UI)
+        console.log('[Dashboard] Updated at', new Date().toLocaleTimeString());
         
         // Update metrics
         updateBalance(data.account_balance, data.total_equity);
@@ -81,6 +100,15 @@ function updateStatus(status, isRunning) {
 function updateExchange(exchange) {
     const exchangeEl = document.getElementById('exchange');
     exchangeEl.textContent = exchange || 'HyperLiquid';
+}
+
+// Update timezone preference
+function updateTimezone() {
+    const select = document.getElementById('timezone-select');
+    const selectedZone = select.value;
+    localStorage.setItem('preferred_timezone', selectedZone);
+    updateTimestamp(); // Refresh timestamp
+    updateConsole(); // Refresh console with new timezone
 }
 
 // Update timestamp
@@ -208,14 +236,19 @@ async function updateConsole() {
         // Keep last 50 logs and REVERSE (newest first)
         const recentLogs = logs.slice(-50).reverse();
         
+        // Get selected timezone
+        const timezone = localStorage.getItem('preferred_timezone') || 'local';
+        
         // Render with level classes and selective emojis
         consoleEl.innerHTML = recentLogs.map(log => {
             const emoji = getLogEmoji(log);
             const levelClass = log.level || 'info';
-            return `<div class="console-line ${levelClass}">${emoji}[${log.timestamp}] ${log.message}</div>`;
+            
+            // Convert timestamp to selected timezone
+            const displayTime = convertTimestamp(log.timestamp, timezone);
+            
+            return `<div class="console-line ${levelClass}">${emoji}[${displayTime}] ${log.message}</div>`;
         }).join('');
-        
-        // NO auto-scroll (newest is at top now)
         
     } catch (error) {
         console.error('Error updating console:', error);
@@ -231,12 +264,59 @@ function getLogEmoji(log) {
     if (level === 'success' && msg.includes('started')) return '▶️ ';
     if (level === 'info' && msg.includes('stopped')) return '⏹️ ';
     if (level === 'trade') {
-        if (msg.includes('📈')) return ''; // Emoji already in message
-        if (msg.includes('📉')) return ''; // Emoji already in message
+        // Emoji already in message from backend
+        if (msg.includes('📈') || msg.includes('📉')) return '';
     }
     if (level === 'error') return '❌ ';
     
     return ''; // No emoji for most messages
+}
+
+// Convert timestamp to selected timezone
+function convertTimestamp(timestamp, timezone) {
+    // Backend sends HH:MM:SS in UTC
+    // We need to parse it and convert to selected timezone
+    
+    try {
+        // Get today's date and combine with the time
+        const now = new Date();
+        const [hours, minutes, seconds] = timestamp.split(':').map(Number);
+        
+        // Create UTC date object
+        const utcDate = new Date(Date.UTC(
+            now.getUTCFullYear(),
+            now.getUTCMonth(),
+            now.getUTCDate(),
+            hours,
+            minutes,
+            seconds || 0
+        ));
+        
+        if (timezone === 'local') {
+            // Convert to user's local timezone
+            return utcDate.toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        } else if (timezone === 'UTC') {
+            // Keep as UTC
+            return timestamp;
+        } else {
+            // Convert to specific timezone
+            return utcDate.toLocaleTimeString('en-US', {
+                hour12: false,
+                timeZone: timezone,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+    } catch (error) {
+        // If conversion fails, return original
+        return timestamp;
+    }
 }
 
 // Load agent state on page load
@@ -265,56 +345,71 @@ async function loadAgentState() {
     }
 }
 
-// Add console message locally
-function addConsoleMessage(message) {
+// Add console message locally (prepends to top)
+function addConsoleMessage(message, level = 'info') {
     const consoleEl = document.getElementById('console');
-    const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+    const time = new Date().toLocaleTimeString('en-US', { 
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
     const line = document.createElement('div');
-    line.className = 'console-line';
+    line.className = `console-line ${level}`;
     line.textContent = `[${time}] ${message}`;
-    consoleEl.appendChild(line);
-    consoleEl.scrollTop = consoleEl.scrollHeight;
+    
+    // Prepend to top (newest first)
+    consoleEl.insertBefore(line, consoleEl.firstChild);
+    
+    // Keep only last 50 messages
+    while (consoleEl.children.length > 50) {
+        consoleEl.removeChild(consoleEl.lastChild);
+    }
 }
 
 // Clear console
 function clearConsole() {
     const consoleEl = document.getElementById('console');
-    consoleEl.innerHTML = '<div class="console-line">🌐 Console cleared</div>';
+    consoleEl.innerHTML = '<div class="console-line info">Console cleared</div>';
 }
 
 // Run agent
 async function runAgent() {
     try {
-        addConsoleMessage('▶️ Starting trading agent...');
+        addConsoleMessage('Starting trading agent...', 'info');
         const response = await fetch('/api/start', { method: 'POST' });
         const data = await response.json();
         
         if (data.status === 'started') {
-            addConsoleMessage('✅ Trading agent started successfully');
+            addConsoleMessage('Trading agent started successfully', 'success');
             updateDashboard(); // Immediate update
+        } else if (data.status === 'already_running') {
+            addConsoleMessage('Agent is already running', 'warning');
         } else {
-            addConsoleMessage(`⚠️ ${data.message}`);
+            addConsoleMessage(data.message, 'warning');
         }
     } catch (error) {
-        addConsoleMessage(`❌ Error starting agent: ${error.message}`);
+        addConsoleMessage(`Error starting agent: ${error.message}`, 'error');
     }
 }
 
 // Stop agent
 async function stopAgent() {
     try {
-        addConsoleMessage('⏹️ Stopping trading agent...');
+        addConsoleMessage('Stopping trading agent...', 'info');
         const response = await fetch('/api/stop', { method: 'POST' });
         const data = await response.json();
         
         if (data.status === 'stopped') {
-            addConsoleMessage('✅ Trading agent stopped successfully');
+            addConsoleMessage('Trading agent stopped successfully', 'info');
             updateDashboard(); // Immediate update
+        } else if (data.status === 'not_running') {
+            addConsoleMessage('Agent is not running', 'warning');
         } else {
-            addConsoleMessage(`⚠️ ${data.message}`);
+            addConsoleMessage(data.message, 'warning');
         }
     } catch (error) {
-        addConsoleMessage(`❌ Error stopping agent: ${error.message}`);
+        addConsoleMessage(`Error stopping agent: ${error.message}`, 'error');
     }
 }
 

@@ -19,6 +19,16 @@
             </div>
             <div class="header-right">
                 <span class="timestamp" id="timestamp">--:--:--</span>
+                    <select id="timezone-select" class="timezone-select" onchange="updateTimezone()">
+                        <option value="local">Local Time</option>
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">(GMT-5)New York</option>
+                        <option value="Europe/London">(GMT+1) London</option>
+                        <option value="Europe/Berlin">(GMT+2) Berlin</option>
+                        <option value="Asia/Dubai">(GMT+4) Dubai</option>
+                        <option value="Asia/Singapore">(GMT+8) Singapore</option>
+                        <option value="Asia/Tokyo">(GMT+9) Tokyo</option>  
+                    </select>
                 <button class="btn btn-run" id="run-btn" onclick="runAgent()">▶ RUN</button>
                 <button class="btn btn-stop" id="stop-btn" onclick="stopAgent()" style="display:none;">⏹ STOP</button>
             </div>
