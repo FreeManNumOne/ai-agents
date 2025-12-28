@@ -80,11 +80,21 @@ try:
     from eth_account import Account
     
     def _get_account():
-        """Get HyperLiquid account from environment"""
-        key = os.getenv("HYPERLIQUID_KEY", "")
-        clean_key = key.strip().replace('"', '').replace("'", "")
-        return Account.from_key(clean_key)
-    
+    """Get HyperLiquid account from environment (reads HYPER_LIQUID_ETH_PRIVATE_KEY)"""
+    key = os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "") or os.getenv("HYPERLIQUID_KEY", "")
+    key = (key or "").strip().replace('"', '').replace("'", "")
+
+    if not key:
+        raise RuntimeError("Missing HYPER_LIQUID_ETH_PRIVATE_KEY (private key) in environment.")
+
+    if key.startswith("0x"):
+        key = key[2:]
+
+    if len(key) != 64:
+        raise RuntimeError("HYPER_LIQUID_ETH_PRIVATE_KEY must be 64 hex chars (32 bytes) after removing 0x.")
+
+    return Account.from_key(key)
+
     EXCHANGE_CONNECTED = True
     print("✅ HyperLiquid functions loaded from nice_funcs.py")
     
@@ -94,10 +104,21 @@ except ImportError:
         from src import nice_funcs_hyperliquid as n
         from eth_account import Account
         
-        def _get_account():
-            key = os.getenv("HYPERLIQUID_KEY", "")
-            clean_key = key.strip().replace('"', '').replace("'", "")
-            return Account.from_key(clean_key)
+    def _get_account():
+        key = os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "") or os.getenv("HYPERLIQUID_KEY", "")
+        key = (key or "").strip().replace('"', '').replace("'", "")
+
+        if not key:
+            raise RuntimeError("Missing HYPER_LIQUID_ETH_PRIVATE_KEY (private key) in environment.")
+
+        if key.startswith("0x"):
+            key = key[2:]
+
+        if len(key) != 64:
+            raise RuntimeError("HYPER_LIQUID_ETH_PRIVATE_KEY must be 64 hex chars (32 bytes) after removing 0x.")
+
+        return Account.from_key(key)
+
         
         EXCHANGE_CONNECTED = True
         print("✅ HyperLiquid functions loaded from src.nice_funcs_hyperliquid")
