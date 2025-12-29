@@ -1466,9 +1466,9 @@ Trading Recommendations (BUY signals only):
             print(summary_df.to_string(index=False))
 
             if hasattr(self, 'recommendations_df') and len(self.recommendations_df) > 0:
-            buy = len(self.recommendations_df[self.recommendations_df["action"] == "BUY"])
-            sell = len(self.recommendations_df[self.recommendations_df["action"] == "SELL"])
-            hold = len(self.recommendations_df[self.recommendations_df["action"] == "NOTHING"])
+                buy = len(self.recommendations_df[self.recommendations_df["action"] == "BUY"])
+                sell = len(self.recommendations_df[self.recommendations_df["action"] == "SELL"])
+                hold = len(self.recommendations_df[self.recommendations_df["action"] == "NOTHING"])
 
             add_console_log(f"Signals: {buy} BUY, {sell} SELL, {hold} HOLD", "trade")
 
