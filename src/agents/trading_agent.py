@@ -415,7 +415,10 @@ class TradingAgent:
         if EXCHANGE == "HYPERLIQUID":
             cprint("🔑 Initializing Hyperliquid Account...", "cyan")
             try:
-                raw_key = os.getenv("HYPERLIQUID_KEY", "")
+                raw_key = (
+                   os.getenv("HYPER_LIQUID_KEY", "")
+                   or os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "")
+                )
                 clean_key = raw_key.strip().replace('"', '').replace("'", "")
                 self.account = Account.from_key(clean_key)
 
