@@ -25,19 +25,7 @@ from dotenv import load_dotenv
 import re
 
 # 🔧 Import dashboard logging helper from trading_app
-try:
-    from trading_app import add_console_log
-except Exception:
-    def add_console_log(message, level="info"):
-        print(f"[{level.upper()}] {message}")
-
-def log_and_print(message, level="info"):
-    """Show message in terminal and dashboard console"""
-    print(message, flush=True)
-    try:
-        add_console_log(message, level)
-    except Exception:
-        pass
+from trading_app import add_console_log
 
 
 def extract_json_from_text(text):
@@ -506,8 +494,8 @@ class TradingAgent:
             cprint("   ⚡ LONG/SHORT - Full directional trading", "green")
             cprint("   💡 SELL signals can close longs OR open shorts", "white")
 
-        cprint("\n🤖 LLM Trading Agent initialized!", "green")
-        log_and_print("\n🤖 LLM Trading Agent initialized!", "success")
+        cprint("\n 🤖 LLM Trading Agent initialized!", "green")
+        add_console_log("\n 🤖 LLM Trading Agent initialized!", "success")
 
     def chat_with_ai(self, system_prompt, user_content):
         """Send prompt to AI model via model factory"""
@@ -530,8 +518,8 @@ class TradingAgent:
     def _format_market_data_for_swarm(self, token, market_data):
         """Format market data into a clean, readable format for swarm analysis"""
         try:
-            cprint(f"\n📊 MARKET DATA RECEIVED FOR {token[:8]}...", "cyan", attrs=["bold"])
-            log_and_print(f"\n📊 MARKET DATA RECEIVED FOR {token[:8]}...", "info")
+            cprint(f"\n 📊 MARKET DATA RECEIVED FOR {token[:8]}...", "cyan", attrs=["bold"])
+            add_console_log(f"\nMarket Data Received for {token[:8]}...", "info")
 
             if isinstance(market_data, pd.DataFrame):
                 cprint(f"✅ DataFrame received: {len(market_data)} bars", "green")
@@ -624,6 +612,7 @@ FULL DATASET:
         """Fetch all open positions across all symbols"""
         cprint("\n" + "=" * 60, "cyan")
         cprint("📊 FETCHING ALL OPEN POSITIONS", "white", "on_blue", attrs=["bold"])
+        add_console_log("Fetching all Open Positions", "info")
         cprint("=" * 60, "cyan")
 
         all_positions = {}
@@ -662,8 +651,9 @@ FULL DATASET:
                 continue
 
         if not all_positions:
-            cprint("   ℹ️  No open positions found", "yellow")
-
+            cprint("ℹ️  No open positions found", "yellow")
+            add_console_log("ℹ️  No open positions found", "info")
+           
         cprint("=" * 60 + "\n", "cyan")
         return all_positions
 
@@ -673,8 +663,8 @@ FULL DATASET:
             return {}
 
         cprint("\n" + "=" * 60, "yellow")
-        cprint("🤖 AI ANALYZING OPEN POSITIONS", "white", "on_magenta", attrs=["bold"])
-        log_and_print("🤖 AI ANALYZING OPEN POSITIONS", "info")
+        cprint(" 🤖 AI ANALYZING OPEN POSITIONS", "white", "on_magenta", attrs=["bold"])
+        add_console_log("AI Analyses open position", "info")
         cprint("=" * 60, "yellow")
 
         # Build position summary
@@ -791,7 +781,7 @@ Return ONLY valid JSON with the following structure:
                 reason = decision.get("reasoning", "")
                 color = "red" if action.upper() == "CLOSE" else "green"
                 cprint(f"   {symbol:<10} → {action:<6} | {reason}", color)
-                log_and_print(f"AI Decision → {symbol}: {action} | {reason}", "info")
+                add_console_log(f"AI Decision → {symbol}: {action} | {reason}", "info")
 
 
             cprint("=" * 60 + "\n", "yellow")
@@ -823,7 +813,7 @@ Return ONLY valid JSON with the following structure:
                     n.close_complete_position(symbol, self.account)
 
                     cprint(f"✅ {symbol} position closed successfully", "green", attrs=["bold"])
-                    log_and_print(f"✅ Closed {symbol} | Reason: {decision['reasoning']}", "success")
+                    add_console_log(f"✅ Closed {symbol} | Reason: {decision['reasoning']}", "success")
                    
                     closed_count += 1
                     time.sleep(2)
@@ -974,8 +964,8 @@ Return ONLY valid JSON with the following structure:
                     ignore_index=True,
                 )
 
-                log_and_print(f"🎯 AI Analysis Complete for {token[:4]}!", "success")
-                log_and_print(f"Reasoning for {token[:4]}:\n{reasoning}", "info")
+                add_console_log(f" 🎯 AI Analysis Complete for {token[:4]}!", "success")
+                add_console_log(f" Reasoning for {token[:4]}:\n{reasoning}", "info")
 
                 return response
 
@@ -1135,7 +1125,7 @@ Trading Recommendations (BUY signals only):
     def execute_allocations(self, allocation_dict):
         """Execute the allocations using AI entry for each position"""
         try:
-            print("\n🚀 Moon Dev executing portfolio allocations...")
+            print("\n🚀 Executing portfolio allocations...")
 
             for token, amount in allocation_dict.items():
                 if token in EXCLUDED_TOKENS:
@@ -1168,7 +1158,7 @@ Trading Recommendations (BUY signals only):
                             n.ai_entry(token, amount)
 
                         print(f"✅ Entry complete for {token}")
-                        log_and_print(f"🚀 Opened new {token} position for ${amount:.2f}", "success")
+                        add_console_log(f"Opened new {token} position for ${amount:.2f}", "success")
 
                     
                         # Log position open
@@ -1233,7 +1223,7 @@ Trading Recommendations (BUY signals only):
                         else:
                             n.chunk_kill(token, max_usd_order_size, slippage)
                         cprint("✅ Position closed successfully!", "white", "on_green")
-                        log_and_print(f"Closed {token} position due to signal", "warning")
+                        add_console_log(f"Closed {token} position due to signal", "info")
 
                     except Exception as e:
                         cprint(f"❌ Error closing position: {str(e)}", "white", "on_red")
@@ -1282,7 +1272,7 @@ Trading Recommendations (BUY signals only):
                             fn(token, position_size, **kwargs)
 
                             cprint("✅ Short position opened successfully!", "white", "on_green")
-                            log_and_print(f"📉 Opened new {token} SHORT position", "success")
+                            add_console_log(f"📉 Opened new {token} SHORT position", "success")
 
                             
                             # Log short position open
@@ -1328,7 +1318,7 @@ Trading Recommendations (BUY signals only):
 
                             if success:
                                 cprint("✅ LONG Position opened successfully!", "white", "on_green")
-                                log_and_print(f"📈 Opened new {token} LONG position", "success")
+                                add_console_log(f"📈 Opened new {token} LONG position", "success")
 
                                 
                                 time.sleep(2)
@@ -1456,8 +1446,8 @@ Trading Recommendations (BUY signals only):
             # STEP 5: ANALYZE TOKENS FOR NEW ENTRIES
             cprint("\n📈 Analyzing tokens for new entry opportunities...", "white", "on_blue")
             for token, data in market_data.items():
-                cprint(f"\n🤖 Analyzing {token}...", "white", "on_green")
-                log_and_print(f"\n🤖 Analyzing {token}...", "info")
+                cprint(f" 🤖 Analyzing {token}...", "white", "on_green")
+                add_console_log(f" 🤖 Analyzing {token}...", "info")
 
 
                 if strategy_signals and token in strategy_signals:
@@ -1482,7 +1472,7 @@ Trading Recommendations (BUY signals only):
                 allocation = self.allocate_portfolio()
                 if allocation:
                     cprint("\n💼 Executing portfolio allocations...", "white", "on_blue")
-                    log_and_print("\n💼 Executing portfolio allocations...", "info")
+                    add_console_log("Executing portfolio allocations...", "info")
                     self.execute_allocations(allocation)
 
             # STEP 8: FINAL PORTFOLIO REPORT
@@ -1499,7 +1489,7 @@ Trading Recommendations (BUY signals only):
 
             cprint(f"\n{'=' * 80}", "cyan")
             cprint("✅ TRADING CYCLE COMPLETE", "white", "on_green", attrs=["bold"])
-            log_and_print("Trading cycle complete", "success")
+            add_console_log("Trading cycle complete", "success")
             cprint(f"{'=' * 80}\n", "cyan")
 
             # --- Display Account Balance and Invested Totals ---
@@ -1546,11 +1536,11 @@ def main():
             next_run = datetime.now() + timedelta(minutes=SLEEP_BETWEEN_RUNS_MINUTES)
             cprint(f"\n⏰ Next cycle at UTC: {next_run.strftime('%d-%m-%Y %H:%M:%S')}", "white", "on_green")
             time.sleep(SLEEP_BETWEEN_RUNS_MINUTES * 60)
-            log_and_print(f"\n⏰ Next cycle in {timedelta(minutes=SLEEP_BETWEEN_RUNS_MINUTES)} minutes", "info")
+            add_console_log(f"\n⏰ Next cycle in {timedelta(minutes=SLEEP_BETWEEN_RUNS_MINUTES)} minutes", "info")
             
         except KeyboardInterrupt:
             cprint("\n👋 AI Agent shutting down gracefully...", "white", "on_blue")
-            log_and_print("\n👋 AI Agent shutting down gracefully...", "info")
+            add_console_log("\n👋 AI Agent shutting down gracefully...", "info")
             break
         except Exception as e:
             cprint(f"\n❌ Error in main loop: {e}", "white", "on_red")
