@@ -1546,7 +1546,7 @@ def main():
             next_run = datetime.now() + timedelta(minutes=SLEEP_BETWEEN_RUNS_MINUTES)
             cprint(f"\n⏰ Next cycle at UTC: {next_run.strftime('%d-%m-%Y %H:%M:%S')}", "white", "on_green")
             time.sleep(SLEEP_BETWEEN_RUNS_MINUTES * 60)
-            log_and_print(f"\n⏰ Next cycle in {timedelta(minutes=SLEEP_BETWEEN_RUNS_MINUTES)} minutes"}, "info")
+            log_and_print(f"\n⏰ Next cycle in {timedelta(minutes=SLEEP_BETWEEN_RUNS_MINUTES)} minutes", "info")
             
         except KeyboardInterrupt:
             cprint("\n👋 AI Agent shutting down gracefully...", "white", "on_blue")
