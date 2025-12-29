@@ -75,6 +75,64 @@ SYMBOLS = [
 EXCHANGE = "HYPERLIQUID"
 
 # ============================================================================
+# CACHING SYSTEM - Prevents rate limiting
+# ============================================================================
+from threading import Lock
+import time
+
+# Cache storage
+_cache = {
+    "account_data": {"data": None, "timestamp": 0},
+    "positions_data": {"data": None, "timestamp": 0}
+}
+_cache_lock = Lock()
+CACHE_DURATION = 5  # seconds
+
+def get_cached_or_fetch(cache_key, fetch_function):
+    """
+    Generic caching wrapper
+    Returns cached data if fresh (<5 seconds old), otherwise fetches new data
+    """
+    with _cache_lock:
+        cache_entry = _cache.get(cache_key)
+        now = time.time()
+        
+        # Return cached data if fresh
+        if cache_entry and cache_entry["timestamp"] > 0:
+            age = now - cache_entry["timestamp"]
+            if age < CACHE_DURATION:
+                print(f" Cache HIT for {cache_key} (age: {age:.1f}s)")
+                return cache_entry["data"]
+        
+        print(f" Cache MISS for {cache_key} - fetching fresh data")
+    
+    # Fetch fresh data (outside lock to avoid blocking)
+    try:
+        fresh_data = fetch_function()
+        
+        # Update cache
+        with _cache_lock:
+            _cache[cache_key] = {
+                "data": fresh_data,
+                "timestamp": time.time()
+            }
+        
+        return fresh_data
+        
+    except Exception as e:
+        print(f" Error fetching {cache_key}: {e}")
+        
+        # Return stale cache as fallback
+        with _cache_lock:
+            if cache_entry and cache_entry["data"] is not None:
+                print(f"âš ï¸ Returning stale cache for {cache_key}")
+                return cache_entry["data"]
+        
+        # No cache available, re-raise error
+        raise
+        
+
+# ============================================================================
 # IMPORT TRADING FUNCTIONS (with fallback)
 # ============================================================================
 EXCHANGE_CONNECTED = False
@@ -137,7 +195,11 @@ except ImportError:
 # ============================================================================
 
 def get_account_data():
-    """Fetch live account data from HyperLiquid"""
+    """Fetch live account data from HyperLiquid (with 5-second caching)"""
+    return get_cached_or_fetch("account_data", _fetch_account_data_uncached)
+
+def _fetch_account_data_uncached():
+    """Internal function - actual API calls (called by cache wrapper)"""
     if not EXCHANGE_CONNECTED or n is None:
         # Demo mode data
         return {
@@ -182,8 +244,8 @@ def get_account_data():
         
     except Exception as e:
         error_msg = f"Error fetching account data: {str(e)}"
-        print(f"❌ {error_msg}")
-        add_console_log(f"❌ {error_msg}")
+        print(f"Error: {error_msg}")
+        add_console_log(f"Error: {error_msg}")
         
         return {
             "account_balance": 0.0,
@@ -196,9 +258,13 @@ def get_account_data():
 
 
 def get_positions_data():
-    """Fetch ALL live open positions from HyperLiquid"""
+    """Fetch ALL live open positions from HyperLiquid (with 5-second caching)"""
+    return get_cached_or_fetch("positions_data", _fetch_positions_data_uncached)
+
+def _fetch_positions_data_uncached():
+    """Internal function - actual API calls (called by cache wrapper)"""
     if not EXCHANGE_CONNECTED or n is None:
-        print("⚠️ Exchange not connected or nice_funcs not loaded")
+        print("âš ï¸ Exchange not connected or nice_funcs not loaded")
         return []
 
     try:
@@ -207,8 +273,8 @@ def get_positions_data():
         address = os.getenv("ACCOUNT_ADDRESS", account.address)
         
         print(f"\n{'='*60}")
-        print(f"🔍 Fetching positions for address: {address}")
-        print(f"{'='*60}")
+        print(f" Fetching positions for address: {address}")
+        print(f"\n{'='*60}")
         
         # Import HyperLiquid SDK
         from hyperliquid.info import Info
@@ -222,12 +288,12 @@ def get_positions_data():
         
         # Check if assetPositions exists
         if "assetPositions" not in user_state:
-            print("❌ No 'assetPositions' field in user_state")
+            print("No 'assetPositions' field in user_state")
             print(f"Available fields: {list(user_state.keys())}")
             return []
         
         asset_positions = user_state["assetPositions"]
-        print(f"📊 Found {len(asset_positions)} asset position entries")
+        print(f" Found {len(asset_positions)} asset position entries")
         
         # Loop through ALL asset positions
         for idx, position in enumerate(asset_positions):
@@ -240,7 +306,7 @@ def get_positions_data():
                 
                 # Only include non-zero positions
                 if pos_size == 0:
-                    print(f"   ⏭️  Skipping {symbol} (size = 0)")
+                    print(f"   â­ï¸  Skipping {symbol} (size = 0)")
                     continue
                 
                 # Get position details
@@ -249,8 +315,8 @@ def get_positions_data():
                 is_long = pos_size > 0
                 side = "LONG" if is_long else "SHORT"
                 
-                print(f"   📍 {symbol} {side} position detected!")
-                print(f"      Entry: ${entry_px:.2f} | PnL: {pnl_perc:.2f}%")
+                print(f"{symbol} {side} position detected!")
+                print(f"Entry: ${entry_px:.2f} | PnL: {pnl_perc:.2f}%")
                 
                 # Fetch current mark price
                 try:
@@ -258,14 +324,14 @@ def get_positions_data():
                     mark_price = (ask + bid) / 2
                     print(f"      Mark price: ${mark_price:.2f}")
                 except Exception as price_err:
-                    print(f"      ⚠️ Could not fetch mark price: {price_err}")
+                    print(f"      âš ï¸ Could not fetch mark price: {price_err}")
                     mark_price = entry_px
                     print(f"      Using entry price as fallback: ${mark_price:.2f}")
                 
                 # Calculate position value in USD
                 position_value = abs(pos_size) * mark_price
                 
-                print(f"      Position value: ${position_value:.2f}")
+                print(f"Position value: ${position_value:.2f}")
                 
                 # Add to positions array
                 position_obj = {
@@ -280,22 +346,22 @@ def get_positions_data():
                 
                 positions.append(position_obj)
                 
-                print(f"   ✅ Added to positions array: {symbol} {side}")
+                print(f"Added to positions array: {symbol} {side}")
                 
             except Exception as pos_err:
-                print(f"   ❌ Error processing position {idx + 1}: {pos_err}")
+                print(f"Error processing position {idx + 1}: {pos_err}")
                 import traceback
                 traceback.print_exc()
                 continue
         
         print(f"\n{'='*60}")
-        print(f"✅ Total positions to return: {len(positions)}")
+        print(f"âœ… Total positions to return: {len(positions)}")
         print(f"{'='*60}\n")
         
         # Log positions for debugging
         if positions:
             for pos in positions:
-                print(f"   • {pos['symbol']} {pos['side']}: ${pos['position_value']:.2f}")
+                print(f"   â€¢ {pos['symbol']} {pos['side']}: ${pos['position_value']:.2f}")
         else:
             print("   (No open positions)")
         
@@ -303,7 +369,7 @@ def get_positions_data():
 
     except Exception as e:
         print(f"\n{'='*60}")
-        print(f"❌ CRITICAL ERROR in get_positions_data()")
+        print(f"CRITICAL ERROR in get_positions_data()")
         print(f"{'='*60}")
         print(f"Error: {e}")
         import traceback
