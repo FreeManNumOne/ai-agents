@@ -264,7 +264,7 @@ def get_positions_data():
 def _fetch_positions_data_uncached():
     """Internal function - actual API calls (called by cache wrapper)"""
     if not EXCHANGE_CONNECTED or n is None:
-        print("âš ï¸ Exchange not connected or nice_funcs not loaded")
+        print("Exchange not connected or nice_funcs not loaded")
         return []
 
     try:
@@ -273,8 +273,8 @@ def _fetch_positions_data_uncached():
         address = os.getenv("ACCOUNT_ADDRESS", account.address)
         
         print(f"\n{'='*60}")
-        print(f" Fetching positions for address: {address}")
-        print(f"\n{'='*60}")
+        print(f"Fetching positions for address: {address}")
+        print(f"{'='*60}\n")
         
         # Import HyperLiquid SDK
         from hyperliquid.info import Info
@@ -322,11 +322,11 @@ def _fetch_positions_data_uncached():
                 try:
                     ask, bid, _ = n.ask_bid(symbol)
                     mark_price = (ask + bid) / 2
-                    print(f"      Mark price: ${mark_price:.2f}")
+                    print(f"Mark price: ${mark_price:.2f}")
                 except Exception as price_err:
-                    print(f"      âš ï¸ Could not fetch mark price: {price_err}")
+                    print(f"Could not fetch mark price: {price_err}")
                     mark_price = entry_px
-                    print(f"      Using entry price as fallback: ${mark_price:.2f}")
+                    print(f"Using entry price as fallback: ${mark_price:.2f}")
                 
                 # Calculate position value in USD
                 position_value = abs(pos_size) * mark_price
@@ -355,7 +355,7 @@ def _fetch_positions_data_uncached():
                 continue
         
         print(f"\n{'='*60}")
-        print(f"âœ… Total positions to return: {len(positions)}")
+        print(f"Total positions to return: {len(positions)}")
         print(f"{'='*60}\n")
         
         # Log positions for debugging
