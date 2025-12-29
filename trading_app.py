@@ -623,11 +623,8 @@ def run_trading_agent():
     """Run the trading agent in a loop with output capture"""
     global agent_running, stop_agent_flag, agent_executing
     
-    add_console_log("Trading agent started", "success")
-    
     while agent_running and not stop_agent_flag:
         try:
-            add_console_log(f"Running analysis cycle", "info")
             
             # SET EXECUTION FLAG WITH LOCK
             with agent_lock:
@@ -676,13 +673,10 @@ def run_trading_agent():
                 buy_count = len(agent.recommendations_df[agent.recommendations_df['action'] == 'BUY'])
                 sell_count = len(agent.recommendations_df[agent.recommendations_df['action'] == 'SELL'])
                 nothing_count = len(agent.recommendations_df[agent.recommendations_df['action'] == 'NOTHING'])
-                
-                add_console_log(f"Signals: {buy_count} BUY, {sell_count} SELL, {nothing_count} HOLD", "trade")
 
-            from src.agents.trading_agent import SLEEP_BETWEEN_RUNS_MINUTES as minutes
+            
             # Wait 60 minutes before next cycle
-            add_console_log("✅ Finished Trading cycle...", "info")
-            add_console_log("Next cycle starts in minutes", "info")
+            from src.agents.trading_agent import SLEEP_BETWEEN_RUNS_MINUTES as minutes
             
             # Wait with stop flag checking every minute
             for i in range(60):
