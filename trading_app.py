@@ -68,6 +68,9 @@ SYMBOLS = [
     'FARTCOIN',   # FartCoin
 ]
 
+# Exchange type
+EXCHANGE = "HYPERLIQUID"
+
 # ============================================================================
 # IMPORT TRADING FUNCTIONS (with fallback)
 # ============================================================================
