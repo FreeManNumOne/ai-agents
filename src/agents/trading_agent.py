@@ -1031,7 +1031,7 @@ Return ONLY valid JSON with the following structure:
                 token_format = "token contract addresses"
 
             # --- AI prompt for allocation (exchange-aware) ---
-            allocation_prompt = f"""You are our Portfolio Allocation AI 🌙
+            allocation_prompt = f"""You are our Portfolio Allocation AI
 
 Given:
 - Total portfolio size: ${account_balance:.2f} USD
@@ -1059,8 +1059,8 @@ Example output:
 
 Return ONLY the JSON object. No explanation or markdown."""
 
-            # --- Compose user context ---
-            user_content = f"""
+        # --- Compose user context ---
+        user_content = f"""
 Total Portfolio: ${account_balance:,.2f} USD
 Max Position: ${max_position_size:,.2f} per token
 
@@ -1098,7 +1098,7 @@ Provide allocation JSON now."""
                     cprint(f"⚠️ Skipping invalid allocation: {k} = {v}", "yellow")
 
             total_allocated = sum(valid_allocations.values())
-            
+        
             # --- Scale to match account balance ---
             if total_allocated > 0 and abs(total_allocated - account_balance) > 1:
                 scale_factor = account_balance / total_allocated
@@ -1117,7 +1117,7 @@ Provide allocation JSON now."""
                 else:
                     cprint(f"   • {token}: ${float(amount):,.2f}", "green")
                     trade_count += 1
-            
+        
             cprint(f"\n📈 {trade_count} tokens allocated for trading", "cyan", attrs=["bold"])
 
             return allocations
