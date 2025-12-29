@@ -991,8 +991,8 @@ Return ONLY valid JSON with the following structure:
             )
             return None
 
-def allocate_portfolio(self):
-        """Get AI-recommended portfolio allocation (exchange-aware)"""
+    def allocate_portfolio(self):
+        """Get AI-recommended portfolio allocation"""
         try:
             cprint("\n💰 Calculating optimal portfolio allocation...", "cyan")
 
@@ -1026,8 +1026,13 @@ def allocate_portfolio(self):
             else:
                 available_tokens = MONITORED_TOKENS
 
+<<<<<<< HEAD
             # --- AI prompt for allocation (exchange-aware) ---
             allocation_prompt = f"""You are our Portfolio Allocation AI
+=======
+            # --- AI prompt for allocation ---
+            allocation_prompt = f"""You are our Portfolio Allocation AI 🌙
+>>>>>>> parent of fdb9a8d (fix allocate portfolio)
 
 Given:
 - Total portfolio size: ${account_balance}
@@ -1048,12 +1053,19 @@ Example format:
     "{USDC_ADDRESS}": remaining_cash_amount
 }}"""
 
+<<<<<<< HEAD
         # --- Compose user context ---
         user_content = f"""
 Total Portfolio: ${account_balance:,.2f} USD
 Max Position: ${max_position_size:,.2f} per token
 
 BUY Signals:
+=======
+            # --- Compose user context ---
+            user_content = f"""
+Total Portfolio Size: ${account_balance:,.2f} USD
+Trading Recommendations (BUY signals only):
+>>>>>>> parent of fdb9a8d (fix allocate portfolio)
 {buy_recommendations.to_string()}
 """
 
@@ -1077,6 +1089,7 @@ BUY Signals:
                 allocations[USDC_ADDRESS] = amount
 
             # --- Validate and normalize allocations ---
+<<<<<<< HEAD
             valid_allocations = {}
             for k, v in allocations.items():
                 try:
@@ -1093,6 +1106,17 @@ BUY Signals:
                 scale_factor = account_balance / total_allocated
                 cprint(f"⚙️ Scaling allocations by {scale_factor:.2f}x", "yellow")
                 for k in valid_allocations:
+=======
+            valid_allocations = {k: float(v) for k, v in allocations.items()
+                                if isinstance(v, (int, float, str)) and str(v).replace('.', '', 1).isdigit()}
+            total_margin = sum(valid_allocations.values())
+            target_margin = account_balance * (MAX_POSITION_PERCENTAGE / 100)
+        
+            # --- Scale allocations to use 90% of equity ---
+            if total_margin > 0:
+                scale_factor = target_margin / total_margin
+                for k in valid_allocations.keys():
+>>>>>>> parent of fdb9a8d (fix allocate portfolio)
                     valid_allocations[k] = round(valid_allocations[k] * scale_factor, 2)
         
             # --- Enforce minimum trade size (≥ $12 notional) ---
@@ -1119,6 +1143,7 @@ BUY Signals:
             # --- Pretty print allocation ---
             cprint("\n📊 AI Portfolio Allocation:", "green", attrs=["bold"])
             for token, amount in allocations.items():
+<<<<<<< HEAD
                 if token == CASH_TOKEN or token in EXCLUDED_TOKENS:
                     cprint(f"   • {token}: ${float(amount):,.2f} (cash reserve)", "white")
                 else:
@@ -1126,6 +1151,13 @@ BUY Signals:
                     trade_count += 1
         
             cprint(f"\n📈 {trade_count} tokens allocated for trading", "cyan", attrs=["bold"])
+=======
+                token_display = "USDC (Cash)" if token == USDC_ADDRESS else token
+                try:
+                    cprint(f"   • {token_display}: ${float(amount):,.2f}", "green")
+                except (ValueError, TypeError):
+                    cprint(f"   • {token_display}: {amount} (Invalid Amount)", "red")
+>>>>>>> parent of fdb9a8d (fix allocate portfolio)
 
             return allocations
 
