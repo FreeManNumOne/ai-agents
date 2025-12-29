@@ -711,16 +711,30 @@ def get_history():
         print(f"❌ Error in /api/history: {e}")
         return jsonify([])
 
-
 @app.route('/api/console')
 def get_console():
-    """API endpoint for console logs"""
-    try:
-        logs = get_console_logs()
-        return jsonify(logs)
-    except Exception as e:
-        print(f"❌ Error in /api/console: {e}")
-        return jsonify([])
+    """
+    Return console logs for the Agent Dashboard.
+    During agent_execution=True (Smart Dashboard Updates),
+    show full logs for analysis and trade execution phases,
+    but throttle everything else.
+    """
+    global console_log, agent_execution
+
+    # Default: show all logs if agent not executing
+    if not agent_execution:
+        return jsonify(console_log[-200:])  # last 200 logs, for safety
+
+    # --- Smart Dashboard Updates active ---
+    allowed_levels = {"important", "error", "warning", "analyze", "trade"}
+    visible_logs = [
+        entry
+        for entry in console_log[-300:]  # look at last 300 entries
+        if entry.get("level", "info") in allowed_levels
+    ]
+
+    return jsonify(visible_logs)
+
 
 
 @app.route('/api/start', methods=['POST'])
