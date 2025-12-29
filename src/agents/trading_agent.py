@@ -1026,13 +1026,8 @@ Return ONLY valid JSON with the following structure:
             else:
                 available_tokens = MONITORED_TOKENS
 
-<<<<<<< HEAD
-            # --- AI prompt for allocation (exchange-aware) ---
-            allocation_prompt = f"""You are our Portfolio Allocation AI
-=======
             # --- AI prompt for allocation ---
             allocation_prompt = f"""You are our Portfolio Allocation AI 🌙
->>>>>>> parent of fdb9a8d (fix allocate portfolio)
 
 Given:
 - Total portfolio size: ${account_balance}
@@ -1053,19 +1048,10 @@ Example format:
     "{USDC_ADDRESS}": remaining_cash_amount
 }}"""
 
-<<<<<<< HEAD
-        # --- Compose user context ---
-        user_content = f"""
-Total Portfolio: ${account_balance:,.2f} USD
-Max Position: ${max_position_size:,.2f} per token
-
-BUY Signals:
-=======
             # --- Compose user context ---
             user_content = f"""
 Total Portfolio Size: ${account_balance:,.2f} USD
 Trading Recommendations (BUY signals only):
->>>>>>> parent of fdb9a8d (fix allocate portfolio)
 {buy_recommendations.to_string()}
 """
 
@@ -1089,24 +1075,6 @@ Trading Recommendations (BUY signals only):
                 allocations[USDC_ADDRESS] = amount
 
             # --- Validate and normalize allocations ---
-<<<<<<< HEAD
-            valid_allocations = {}
-            for k, v in allocations.items():
-                try:
-                    amount = float(v)
-                    if amount > 0:
-                        valid_allocations[k] = amount
-                except (ValueError, TypeError):
-                    cprint(f"⚠️ Skipping invalid allocation: {k} = {v}", "yellow")
-
-            total_allocated = sum(valid_allocations.values())
-        
-            # --- Scale to match account balance ---
-            if total_allocated > 0 and abs(total_allocated - account_balance) > 1:
-                scale_factor = account_balance / total_allocated
-                cprint(f"⚙️ Scaling allocations by {scale_factor:.2f}x", "yellow")
-                for k in valid_allocations:
-=======
             valid_allocations = {k: float(v) for k, v in allocations.items()
                                 if isinstance(v, (int, float, str)) and str(v).replace('.', '', 1).isdigit()}
             total_margin = sum(valid_allocations.values())
@@ -1116,7 +1084,6 @@ Trading Recommendations (BUY signals only):
             if total_margin > 0:
                 scale_factor = target_margin / total_margin
                 for k in valid_allocations.keys():
->>>>>>> parent of fdb9a8d (fix allocate portfolio)
                     valid_allocations[k] = round(valid_allocations[k] * scale_factor, 2)
         
             # --- Enforce minimum trade size (≥ $12 notional) ---
@@ -1143,21 +1110,11 @@ Trading Recommendations (BUY signals only):
             # --- Pretty print allocation ---
             cprint("\n📊 AI Portfolio Allocation:", "green", attrs=["bold"])
             for token, amount in allocations.items():
-<<<<<<< HEAD
-                if token == CASH_TOKEN or token in EXCLUDED_TOKENS:
-                    cprint(f"   • {token}: ${float(amount):,.2f} (cash reserve)", "white")
-                else:
-                    cprint(f"   • {token}: ${float(amount):,.2f}", "green")
-                    trade_count += 1
-        
-            cprint(f"\n📈 {trade_count} tokens allocated for trading", "cyan", attrs=["bold"])
-=======
                 token_display = "USDC (Cash)" if token == USDC_ADDRESS else token
                 try:
                     cprint(f"   • {token_display}: ${float(amount):,.2f}", "green")
                 except (ValueError, TypeError):
                     cprint(f"   • {token_display}: {amount} (Invalid Amount)", "red")
->>>>>>> parent of fdb9a8d (fix allocate portfolio)
 
             return allocations
 
@@ -1167,8 +1124,7 @@ Trading Recommendations (BUY signals only):
             traceback.print_exc()
             return None
 
-
-   def execute_allocations(self, allocation_dict):
+    def execute_allocations(self, allocation_dict):
         """Execute the allocations using AI entry for each position"""
         try:
             print("\n🚀 Executing portfolio allocations...")
