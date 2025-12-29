@@ -665,9 +665,7 @@ def run_trading_agent():
     while agent_running and not stop_agent_flag:
         try:
             cycle_count += 1
-            add_console_log(f"\n{'='*60}", "info")
-            add_console_log(f"🔄 Starting Cycle #{cycle_count}", "info")
-            add_console_log(f"{'='*60}", "info")
+            add_console_log(f"Starting Cycle #{cycle_count}", "info")
             
             # SET EXECUTION FLAG WITH LOCK
             with agent_lock:
@@ -691,7 +689,7 @@ def run_trading_agent():
             # Calculate cycle duration
             cycle_duration = int(time.time() - cycle_start)
             
-            add_console_log(f"✅ Cycle #{cycle_count} complete ({cycle_duration}s)", "success")
+            add_console_log(f"✅ Cycle #{cycle_count} complete ({cycle_duration}s)", "info")
 
             # CLEAR EXECUTION FLAG WITH LOCK
             with agent_lock:
@@ -706,12 +704,12 @@ def run_trading_agent():
             
             # Wait before next cycle
             from src.agents.trading_agent import SLEEP_BETWEEN_RUNS_MINUTES as minutes
-            add_console_log(f"⏰ Next cycle in {minutes} minutes", "info")
+            add_console_log(f"Next cycle in {minutes} minutes", "info")
             
             # Wait with stop flag checking every minute
             for i in range(minutes):
                 if stop_agent_flag:
-                    add_console_log("🛑 Stop signal received", "info")
+                    add_console_log("Stop signal received", "info")
                     break
                 time.sleep(60)
             
@@ -734,7 +732,7 @@ def run_trading_agent():
         agent_running = False
         agent_executing = False
         
-    add_console_log(f"🛑 Agent stopped after {cycle_count} cycles", "info")
+    add_console_log(f"Agent stopped after {cycle_count} cycles", "info")
 
 # ============================================================================
 # FLASK ROUTES
