@@ -991,7 +991,7 @@ Return ONLY valid JSON with the following structure:
             )
             return None
 
-    def allocate_portfolio(self):
+def allocate_portfolio(self):
         """Get AI-recommended portfolio allocation (exchange-aware)"""
         try:
             cprint("\n💰 Calculating optimal portfolio allocation...", "cyan")
