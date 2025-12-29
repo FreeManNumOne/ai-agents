@@ -444,13 +444,15 @@ class TradingAgent:
             )
             self.swarm = SwarmAgent()
             cprint("✅ Swarm mode initialized with 6 AI models!", "green")
+            add_console_log("✅ Swarm mode initialized!", "success")
 
             cprint("💼 Initializing fast model for portfolio calculations...", "cyan")
             self.model = model_factory.get_model(AI_MODEL_TYPE, AI_MODEL_NAME)
             if self.model:
                 cprint(f"✅ Allocation model ready: {self.model.model_name}", "green")
         else:
-            cprint(f"\n🤖 Initializing Trading Agent with {AI_MODEL_TYPE} model...", "cyan")
+            cprint(f"Initializing Trading Agent with {AI_MODEL_TYPE} model...", "cyan")
+            add_console_log(f"Initializing Trading Agent with {AI_MODEL_TYPE} model...", "info")
             self.model = model_factory.get_model(AI_MODEL_TYPE, AI_MODEL_NAME)
             self.swarm = None
 
@@ -495,7 +497,7 @@ class TradingAgent:
             cprint("   💡 SELL signals can close longs OR open shorts", "white")
 
         cprint("\n 🤖 LLM Trading Agent initialized!", "green")
-        add_console_log("\n 🤖 LLM Trading Agent initialized!", "success")
+        add_console_log("🤖 Trading Agent initialized!", "success")
 
     def chat_with_ai(self, system_prompt, user_content):
         """Send prompt to AI model via model factory"""
@@ -519,7 +521,7 @@ class TradingAgent:
         """Format market data into a clean, readable format for swarm analysis"""
         try:
             cprint(f"\n 📊 MARKET DATA RECEIVED FOR {token[:8]}...", "cyan", attrs=["bold"])
-            add_console_log(f"\nMarket Data Received for {token[:8]}...", "info")
+            add_console_log(f"Market Data Received for {token[:8]}...", "info")
 
             if isinstance(market_data, pd.DataFrame):
                 cprint(f"✅ DataFrame received: {len(market_data)} bars", "green")
@@ -612,8 +614,9 @@ FULL DATASET:
         """Fetch all open positions across all symbols"""
         cprint("\n" + "=" * 60, "cyan")
         cprint("📊 FETCHING ALL OPEN POSITIONS", "white", "on_blue", attrs=["bold"])
-        add_console_log("Fetching all Open Positions", "info")
         cprint("=" * 60, "cyan")
+
+        add_console_log("Fetching all Open Positions", "info")
 
         all_positions = {}
         check_tokens = SYMBOLS if EXCHANGE in ["ASTER", "HYPERLIQUID"] else MONITORED_TOKENS
@@ -664,8 +667,8 @@ FULL DATASET:
 
         cprint("\n" + "=" * 60, "yellow")
         cprint(" 🤖 AI ANALYZING OPEN POSITIONS", "white", "on_magenta", attrs=["bold"])
-        add_console_log("AI Analyses open position", "info")
         cprint("=" * 60, "yellow")
+        add_console_log("AI Analyses open position", "info")
 
         # Build position summary
         position_summary = []
@@ -964,7 +967,7 @@ Return ONLY valid JSON with the following structure:
                     ignore_index=True,
                 )
 
-                add_console_log(f" 🎯 AI Analysis Complete for {token[:4]}!", "success")
+                add_console_log(f"Analysis Complete for {token[:4]}!", "success")
 
                 return response
 
