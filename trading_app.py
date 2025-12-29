@@ -637,14 +637,27 @@ def index():
     """Serve the main dashboard"""
     return render_template('index.html')
 
+    
 @app.route('/api/agent-status')
 def get_agent_status():
     """Lightweight status check - returns if agent is actively executing"""
-    return jsonify({
-        "running": agent_running,
-        "executing": agent_executing,
-        "timestamp": datetime.now().isoformat()
-    })
+    global agent_running, agent_executing, agent_thread
+    with agent_lock:
+        # Also check if thread is actually alive
+        thread_alive = agent_thread is not None and agent_thread.is_alive()
+        
+        # If thread died but flags say running, fix the flags
+        if agent_running and not thread_alive:
+            add_console_log("⚠️ Agent thread died unexpectedly - resetting flags", "warning")
+            agent_running = False
+            agent_executing = False
+        
+        return jsonify({
+            "running": agent_running,
+            "executing": agent_executing,
+            "thread_alive": thread_alive,
+            "timestamp": datetime.now().isoformat()
+        })
 
 @app.route('/api/data')
 def get_data():
@@ -772,28 +785,6 @@ def stop_agent():
         "status": "stopped",
         "message": "Trading agent stopped successfully"
     })
-    
-    
-@app.route('/api/agent-status')
-def get_agent_status():
-    """Lightweight status check - returns if agent is actively executing"""
-    with agent_lock:
-        # Also check if thread is actually alive
-        thread_alive = agent_thread is not None and agent_thread.is_alive()
-        
-        # If thread died but flags say running, fix the flags
-        if agent_running and not thread_alive:
-            add_console_log("⚠️ Agent thread died unexpectedly - resetting flags", "warning")
-            global agent_running, agent_executing
-            agent_running = False
-            agent_executing = False
-        
-        return jsonify({
-            "running": agent_running,
-            "executing": agent_executing,
-            "thread_alive": thread_alive,
-            "timestamp": datetime.now().isoformat()
-        })
 
 
 @app.route('/health')
