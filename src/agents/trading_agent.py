@@ -993,43 +993,41 @@ Return ONLY valid JSON with the following structure:
             )
             return None
 
-    def allocate_portfolio(self):
-       """Get AI-recommended portfolio allocation"""
-       try:
-           cprint("\n💰 Calculating optimal portfolio allocation...", "cyan")
+def allocate_portfolio(self):
+        """Get AI-recommended portfolio allocation"""
+        try:
+            cprint("\n💰 Calculating optimal portfolio allocation...", "cyan")
 
-           # Filter only BUY recommendations
-           buy_recommendations = self.recommendations_df[
-               self.recommendations_df["action"] == "BUY"
-           ]
+            # Filter only BUY recommendations
+            buy_recommendations = self.recommendations_df[
+                self.recommendations_df["action"] == "BUY"
+            ]
 
-           if buy_recommendations.empty:
-               cprint("✅ No BUY recommendations. Skipping allocation.", "green")
-               return {}
+            if buy_recommendations.empty:
+                cprint("✅ No BUY recommendations. Skipping allocation.", "green")
+                return {}
 
-           # ===== ADD THIS VALIDATION BLOCK =====
-           # Filter to only valid tokens for this exchange
-           if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
-               valid_tokens = SYMBOLS
-               buy_recommendations = buy_recommendations[
-                   buy_recommendations["token"].isin(valid_tokens)
-               ]
-               cprint(f"📋 Filtered to valid {EXCHANGE} symbols: {list(buy_recommendations['token'])}", "cyan")
-               add_console_log(f"Valid tokens for allocation: {list(buy_recommendations['token'])}", "info")
-           else:
-               valid_tokens = MONITORED_TOKENS
-               buy_recommendations = buy_recommendations[
-                   buy_recommendations["token"].isin(valid_tokens)
-               ]
-        
-           if buy_recommendations.empty:
-               cprint("⚠️ No BUY recommendations for valid exchange tokens", "yellow")
-               add_console_log("No valid tokens to allocate after filtering", "warning")
-               return {}
-           # ===== END VALIDATION BLOCK =====
+            # Filter to only valid tokens for this exchange
+            if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
+                valid_tokens = SYMBOLS
+                buy_recommendations = buy_recommendations[
+                    buy_recommendations["token"].isin(valid_tokens)
+                ]
+                cprint(f"📋 Filtered to valid {EXCHANGE} symbols: {list(buy_recommendations['token'])}", "cyan")
+                add_console_log(f"Valid tokens for allocation: {list(buy_recommendations['token'])}", "info")
+            else:
+                valid_tokens = MONITORED_TOKENS
+                buy_recommendations = buy_recommendations[
+                    buy_recommendations["token"].isin(valid_tokens)
+                ]
+            
+            if buy_recommendations.empty:
+                cprint("⚠️ No BUY recommendations for valid exchange tokens", "yellow")
+                add_console_log("No valid tokens to allocate after filtering", "warning")
+                return {}
 
-           # Get account balance (equity)
-           account_balance = get_account_balance(self.account)
+            # Get account balance (equity)
+            account_balance = get_account_balance(self.account)
             if account_balance <= 0:
                 cprint("❌ Account balance is zero. Cannot allocate.", "red")
                 return None
@@ -1049,7 +1047,7 @@ Return ONLY valid JSON with the following structure:
             else:
                 available_tokens = MONITORED_TOKENS
 
-            # --- AI prompt for allocation ---
+            # AI prompt for allocation
             allocation_prompt = f"""You are our Portfolio Allocation AI 🌙
 
 Given:
@@ -1071,33 +1069,33 @@ Example format:
     "{USDC_ADDRESS}": remaining_cash_amount
 }}"""
 
-            # --- Compose user context ---
+            # Compose user context
             user_content = f"""
 Total Portfolio Size: ${account_balance:,.2f} USD
 Trading Recommendations (BUY signals only):
 {buy_recommendations.to_string()}
 """
 
-            # --- Call AI model ---
+            # Call AI model
             response = self.chat_with_ai(allocation_prompt, user_content)
 
             if not response:
                 cprint("❌ No response from AI for portfolio allocation", "red")
                 return None
 
-            # --- Safely parse JSON ---
+            # Safely parse JSON
             allocations = extract_json_from_text(response)
             if not allocations:
                 cprint("❌ Error parsing allocation JSON: No JSON object found in the response", "red")
                 cprint(f"   Raw response: {response}", "yellow")
                 return None
 
-            # --- Normalize keys if AI returned string literal 'USDC_ADDRESS' ---
+            # Normalize keys if AI returned string literal 'USDC_ADDRESS'
             if "USDC_ADDRESS" in allocations and USDC_ADDRESS not in allocations:
                 amount = allocations.pop("USDC_ADDRESS")
                 allocations[USDC_ADDRESS] = amount
 
-            # --- Validate and normalize allocations ---
+            # Validate and normalize allocations
             valid_allocations = {
                 k: float(v) for k, v in allocations.items()
                 if isinstance(v, (int, float, str)) and str(v).replace('.', '', 1).isdigit()
@@ -1105,13 +1103,13 @@ Trading Recommendations (BUY signals only):
             total_margin = sum(valid_allocations.values())
             target_margin = account_balance * (MAX_POSITION_PERCENTAGE / 100)
             
-            # --- Scale allocations to use 90% of equity ---
+            # Scale allocations to use 90% of equity
             if total_margin > 0:
                 scale_factor = target_margin / total_margin
                 for k in valid_allocations.keys():
                     valid_allocations[k] = round(valid_allocations[k] * scale_factor, 2)
             
-            # --- Enforce minimum trade size (≥ $12 notional) ---
+            # Enforce minimum trade size (≥ $12 notional)
             min_margin = 12 / LEVERAGE
             adjusted = False
             for k, v in valid_allocations.items():
@@ -1122,7 +1120,7 @@ Trading Recommendations (BUY signals only):
                     valid_allocations[k] = round(min_margin, 2)
                     adjusted = True
             
-            # --- Rebalance if any raises occurred ---
+            # Rebalance if any raises occurred
             if adjusted:
                 total_margin = sum(v for k, v in valid_allocations.items() if k != USDC_ADDRESS)
                 scale_factor = target_margin / total_margin
@@ -1132,7 +1130,7 @@ Trading Recommendations (BUY signals only):
             
             allocations = valid_allocations
 
-            # --- Pretty print allocation ---
+            # Pretty print allocation
             cprint("\n📊 AI Portfolio Allocation:", "green", attrs=["bold"])
             for token, amount in allocations.items():
                 token_display = "USDC (Cash)" if token == USDC_ADDRESS else token
@@ -1149,32 +1147,31 @@ Trading Recommendations (BUY signals only):
             traceback.print_exc()
             return None
 
-    def execute_allocations(self, allocation_dict):
+def execute_allocations(self, allocation_dict):
         """Execute the allocations using AI entry for each position"""
         try:
             print("\n🚀 Executing portfolio allocations...")
-            add_console_log(f"🚀 Executing portfolio allocations...")
+            add_console_log("🚀 Starting portfolio allocations", "info")
 
             for token, amount in allocation_dict.items():
                 if token in EXCLUDED_TOKENS:
                     print(f"💵 Keeping ${float(amount):.2f} in {token}")
                     continue
 
-               # ===== ADD TOKEN VALIDATION =====
-               if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
-                   if token not in SYMBOLS:
-                       cprint(f"⚠️ Skipping {token} - not a valid {EXCHANGE} symbol", "yellow")
-                       add_console_log(f"⚠️ Skipped invalid symbol: {token}", "warning")
-                       continue
-               else:
-                   if token not in MONITORED_TOKENS:
-                       cprint(f"⚠️ Skipping {token} - not in monitored tokens", "yellow")
-                       add_console_log(f"⚠️ Skipped invalid token: {token}", "warning")
-                       continue
-               # ===== END VALIDATION =====
+                # Validate token for exchange
+                if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
+                    if token not in SYMBOLS:
+                        cprint(f"⚠️ Skipping {token} - not a valid {EXCHANGE} symbol", "yellow")
+                        add_console_log(f"⚠️ Skipped invalid symbol: {token}", "warning")
+                        continue
+                else:
+                    if token not in MONITORED_TOKENS:
+                        cprint(f"⚠️ Skipping {token} - not in monitored tokens", "yellow")
+                        add_console_log(f"⚠️ Skipped invalid token: {token}", "warning")
+                        continue
 
                 print(f"\n🎯 Processing allocation for {token}...")
-                add_console_log(f"🎯 Processing allocation for {token}...")
+                add_console_log(f"🎯 Processing {token} allocation: ${amount:.2f}", "info")
 
                 try:
                     if EXCHANGE == "HYPERLIQUID":
@@ -1186,21 +1183,31 @@ Trading Recommendations (BUY signals only):
 
                     print(f"🎯 Target allocation: ${target_allocation:.2f} USD")
                     print(f"📊 Current position: ${current_position:.2f} USD")
+                    add_console_log(f"📊 {token} - Current: ${current_position:.2f}, Target: ${target_allocation:.2f}", "info")
+                    
                     effective_value = float(target_allocation) * LEVERAGE
                     print(f"⚡ Trade exposure (with {LEVERAGE}x): ${effective_value:.2f}")
+                    add_console_log(f"⚡ {token} exposure with {LEVERAGE}x leverage: ${effective_value:.2f}", "info")
 
                     if current_position < target_allocation:
                         print(f"✨ Executing entry for {token}")
+                        add_console_log(f"✨ Opening {token} position", "info")
 
                         if EXCHANGE == "HYPERLIQUID":
+                            cprint(f"🔵 HyperLiquid: ai_entry({token}, ${amount:.2f}, leverage={LEVERAGE})", "cyan")
+                            add_console_log(f"🔵 Executing: ai_entry({token}, ${amount:.2f}, {LEVERAGE}x)", "info")
                             n.ai_entry(token, amount, leverage=LEVERAGE, account=self.account)
                         elif EXCHANGE == "ASTER":
+                            cprint(f"🟣 Aster: ai_entry({token}, ${amount:.2f}, leverage={LEVERAGE})", "cyan")
+                            add_console_log(f"🟣 Executing: ai_entry({token}, ${amount:.2f}, {LEVERAGE}x)", "info")
                             n.ai_entry(token, amount, leverage=LEVERAGE)
                         else:
+                            cprint(f"🟢 Solana: ai_entry({token}, ${amount:.2f})", "cyan")
+                            add_console_log(f"🟢 Executing: ai_entry({token}, ${amount:.2f})", "info")
                             n.ai_entry(token, amount)
 
                         print(f"✅ Entry complete for {token}")
-                        add_console_log(f"✅ Opened new {token} position for ${amount:.2f}", "success")
+                        add_console_log(f"✅ {token} position opened successfully", "success")
 
                         # Log position open
                         try:
@@ -1218,15 +1225,22 @@ Trading Recommendations (BUY signals only):
                             pass
                     else:
                         print(f"⏸️ Position already at target size for {token}")
+                        add_console_log(f"⏸️ {token} already at target - no action", "info")
 
                 except Exception as e:
-                    print(f"❌ Error executing entry for {token}: {str(e)}")
+                    error_msg = f"❌ Error executing entry for {token}: {str(e)}"
+                    print(error_msg)
+                    add_console_log(error_msg, "error")
+                    import traceback
+                    traceback.print_exc()
 
                 time.sleep(2)
 
         except Exception as e:
-            print(f"❌ Error executing allocations: {str(e)}")
-            print("🔧 Moon Dev suggests checking the logs and trying again!")
+            error_msg = f"❌ Error executing allocations: {str(e)}"
+            print(error_msg)
+            add_console_log(error_msg, "error")
+            print("🔧 Check the logs and try again!")
 
     def handle_exits(self):
         """Check and exit positions based on SELL recommendations"""
