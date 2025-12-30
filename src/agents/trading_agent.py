@@ -24,8 +24,6 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import re
 
-from trading_app import add_console_log
-
 
 def extract_json_from_text(text):
     """Safely extract JSON object from AI model responses containing text."""
@@ -51,8 +49,16 @@ if project_root not in sys.path:
 
 # 👇 NOW you can import from src safely
 from src.models import model_factory
-from src.agents.swarm_agent import SwarmAgent 
+from src.agents.swarm_agent import SwarmAgent
 from src.data.ohlcv_collector import collect_all_tokens
+
+# Import shared logging utility (prevents circular import with trading_app)
+try:
+    from src.utils.logging_utils import add_console_log
+except ImportError:
+    # Fallback if running standalone without trading_app
+    def add_console_log(message, level="info", console_file=None):
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
 
 
 # Load Environment Variables
