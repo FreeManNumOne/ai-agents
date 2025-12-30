@@ -1,7 +1,18 @@
 """
-🌙 LLM Trading Agent - Production Ready
-======================================
-Complete version with rotating logs and memory leak fixes
+🌙  LLM Trading Agent 🌙
+
+DUAL-MODE AI TRADING SYSTEM:
+
+🤖 SINGLE MODEL MODE (Fast - ~10 seconds per token):
+   - Uses one AI model for quick trading decisions
+   - Best for: Fast execution, high-frequency strategies
+   - Configure model in config.py: AI_MODEL_TYPE and AI_MODEL_NAME
+
+🌊 SWARM MODE (Consensus - ~45-60 seconds per token):
+   - Queries 6 AI models simultaneously for consensus voting
+   - Models vote: "Buy", "Sell", or "Do Nothing"
+   - Majority decision wins with confidence percentage
+   - Best for: Higher confidence trades, 15-minute+ timeframes
 """
 
 import os
@@ -12,64 +23,62 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import re
-import logging
-from logging.handlers import RotatingFileHandler
 
-# ============================================================================
-# ROTATING LOGGER SETUP
-# ============================================================================
-AGENT_LOGS_DIR = Path(__file__).parent.parent / "agent_data" / "logs"
-AGENT_LOGS_DIR.mkdir(parents=True, exist_ok=True)
-
-agent_logger = logging.getLogger('agent')
-agent_handler = RotatingFileHandler(
-    AGENT_LOGS_DIR / 'agent.log',
-    maxBytes=300000,
-    backupCount=5
-)
-agent_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
-agent_logger.addHandler(agent_handler)
-agent_logger.setLevel(logging.INFO)
-
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(logging.Formatter('%(message)s'))
-agent_logger.addHandler(console_handler)
-
-# ============================================================================
-# PROJECT PATH SETUP
-# ============================================================================
-project_root = str(Path(__file__).resolve().parent.parent.parent)
-if project_root not in sys.path:
-    sys.path.append(project_root)
-
-# Dashboard logging helper
+# 🔧 Import dashboard logging helper from trading_app
 try:
-    from trading_app import log_position_open
-except:
-    def log_position_open(symbol, side, size):
+    from trading_app import add_console_log
+except Exception:
+    def add_console_log(message, level="info"):
+        print(f"[{level.upper()}] {message}")
+
+def log_and_print(message, level="info"):
+    """Show message in terminal and dashboard console"""
+    print(message, flush=True)
+    try:
+        add_console_log(message, level)
+    except Exception:
         pass
 
+
 def extract_json_from_text(text):
-    """Safely extract JSON from AI responses"""
+    """Safely extract JSON object from AI model responses containing text."""
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
         try:
             return json.loads(match.group())
         except json.JSONDecodeError:
+            print("⚠️ JSON extraction failed even after matching braces.")
             return None
+    print("⚠️ No JSON object found in AI response.")
     return None
 
+
+# ============================================================================
+# 🚨 CRITICAL: THIS MUST BE HERE (BEFORE 'src' IMPORTS)
+# ============================================================================
+# Add project root to path so Python can find 'src'
+project_root = str(Path(__file__).resolve().parent.parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
+# ============================================================================
+
+# 👇 NOW you can import from src safely
 from src.models import model_factory
 from src.agents.swarm_agent import SwarmAgent 
 from src.data.ohlcv_collector import collect_all_tokens
 
+
+# Load Environment Variables
 load_dotenv()
 
+# ============================================================================
+# 🔧 OPTIONAL: COLOR PRINT & PANDAS SHIM (Keep your existing helpers)
+# ============================================================================
 try:
     from termcolor import cprint
 except Exception:
     def cprint(msg, *args, **kwargs):
-        agent_logger.info(msg)
+        print(msg)
 
 try:
     import pandas as pd
@@ -77,7 +86,7 @@ try:
 except Exception as e:
     pd = None
     PANDAS_AVAILABLE = False
-    agent_logger.warning(f"pandas not installed, using shim")
+    cprint(f"⚠️ pandas not installed: {e}. Using lightweight DataFrame shim.", "yellow")
     import types
 
     class SimpleDataFrame:
@@ -112,11 +121,6 @@ except Exception as e:
 
         def to_dict(self):
             return self._data
-        
-        def iloc(self, idx):
-            if isinstance(idx, slice) and idx.start == 0 and idx.stop == 0:
-                return SimpleDataFrame([], columns=self.columns)
-            return self
 
     def _concat(dfs, ignore_index=True):
         rows = []
@@ -134,57 +138,78 @@ except Exception as e:
     pd = types.SimpleNamespace(DataFrame=SimpleDataFrame, concat=_concat)
 
 # ============================================================================
-# CONFIGURATION
+# 🔧 TRADING AGENT CONFIGURATION
 # ============================================================================
 from eth_account import Account
 
-EXCHANGE = "HYPERLIQUID"
-USE_SWARM_MODE = False
-LONG_ONLY = False
+# 🦈 EXCHANGE SELECTION
+EXCHANGE = "HYPERLIQUID"  # Options: "ASTER", "HYPERLIQUID", "SOLANA"
 
+# 🌊 AI MODE SELECTION
+USE_SWARM_MODE = False # True = Swarm Mode (all Models), False = Single Model
+
+# 📈 TRADING MODE SETTINGS
+LONG_ONLY = False 
+
+# 🤖 SINGLE MODEL SETTINGS
 AI_MODEL_TYPE = 'gemini' 
-AI_MODEL_NAME = 'gemini-2.5-pro'
+AI_MODEL_NAME = 'gemini-2.5-pro'  # Fast Gemini 2.5 model
 AI_TEMPERATURE = 0.6   
 AI_MAX_TOKENS = 3000   
 
+# 💰 POSITION SIZING & RISK MANAGEMENT
 USE_PORTFOLIO_ALLOCATION = True 
 MAX_POSITION_PERCENTAGE = 90      
 LEVERAGE = 20                     
 
-STOP_LOSS_PERCENTAGE = 2.0
-TAKE_PROFIT_PERCENTAGE = 5.0    
-PNL_CHECK_INTERVAL = 2
+# Stop Loss & Take Profit
+STOP_LOSS_PERCENTAGE = 2.0      # SL @ -2% PnL
+TAKE_PROFIT_PERCENTAGE = 5.0    # TP @ +5% PnL 
+PNL_CHECK_INTERVAL = 5          # check PnL every 5 minutes          
 
+# Legacy settings 
 usd_size = 25                  
 max_usd_order_size = 3           
 CASH_PERCENTAGE = 10
 
-DAYSBACK_4_DATA = 1
-DATA_TIMEFRAME = '5m'
-SAVE_OHLCV_DATA = False
+# 📊 MARKET DATA COLLECTION
+DAYSBACK_4_DATA = 2              
+DATA_TIMEFRAME = '30m'            
+SAVE_OHLCV_DATA = False          
 
-slippage = 199
-SLEEP_BETWEEN_RUNS_MINUTES = 5
+# ⚡ TRADING EXECUTION SETTINGS
+slippage = 199                   
+SLEEP_BETWEEN_RUNS_MINUTES = 60  
 
-address = "ACCOUNT_ADDRESS"
+# 🎯 TOKEN CONFIGURATION
+address = "ACCOUNT_ADDRESS" 
 
+# For SOLANA exchange
 USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" 
 SOL_ADDRESS = "So11111111111111111111111111111111111111111"    
 EXCLUDED_TOKENS = [USDC_ADDRESS, SOL_ADDRESS]
 
 MONITORED_TOKENS = []
 
+# For ASTER/HYPERLIQUID exchanges
 SYMBOLS = [
-    'ETH', 'BTC', 'SOL', 'AAVE', 'LINK', 'LTC', 'FARTCOIN',
+    'ETH',        # Ethereum
+    'BTC',        # Bitcoin
+    'SOL',        # Solana
+    'AAVE',       # Aave
+    'LINK',       # Chainlink
+    'LTC',        # Litecoin
+    'FARTCOIN',   # FartCoin (for the fun)
 ]
 
 # ============================================================================
-# EXCHANGE IMPORTS
+# 🔌 EXCHANGE IMPORTS
 # ============================================================================
 project_root = str(Path(__file__).parent.parent.parent)
 if project_root not in sys.path:
     sys.path.append(project_root)
 
+# Corrected Import Logic
 if EXCHANGE == "ASTER":
     try:
         from src import nice_funcs_aster as n
@@ -194,14 +219,14 @@ if EXCHANGE == "ASTER":
         
 elif EXCHANGE == "HYPERLIQUID":
     try:
-        from src import nice_funcs_hyperliquid as n
+        import nice_funcs_hyperliquid as n
         cprint("🦈 Exchange: HyperLiquid (Perpetuals) - Using local nice_funcs_hyperliquid.py", "cyan", attrs=['bold'])
     except ImportError:
         try:
-            import nice_funcs_hyperliquid as n
+            from src import nice_funcs_hyperliquid as n
             cprint("🦈 Exchange: HyperLiquid (Perpetuals) - Using src module", "cyan", attrs=['bold'])
         except ImportError:
-            cprint("❌ Error: nice_funcs_hyperliquid.py not found!", "red")
+            cprint("❌ Error: nice_funcs_hyperliquid.py not found! Ensure it is in the same folder.", "red")
             sys.exit(1)
             
 elif EXCHANGE == "SOLANA":
@@ -213,6 +238,7 @@ elif EXCHANGE == "SOLANA":
 
 else:
     cprint(f"❌ Unknown exchange: {EXCHANGE}", "red")
+    cprint("Available exchanges: ASTER, HYPERLIQUID, SOLANA", "yellow")
     sys.exit(1)
 
 from src.data.ohlcv_collector import collect_all_tokens
@@ -302,7 +328,7 @@ For EACH symbol, decide whether the user should **KEEP** the position open or **
 Explain briefly the reasoning behind each decision (e.g., "Trend weakening, RSI overbought").
 
 ⚠️ CRITICAL OUTPUT RULES:
-- You MUST respond ONLY with a valid JSON object — no commentary, no Markdown, no code fences.
+- You MUST respond ONLY with a valid JSON object – no commentary, no Markdown, no code fences.
 - JSON must be well-formed and parseable by Python's json.loads().
 - The JSON must follow exactly this structure:
 
@@ -321,12 +347,13 @@ Do not include ```json or any other formatting around the JSON.
 Respond ONLY with the raw JSON object.
 """
 
+
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 
 def get_account_balance(account=None):
-    """Get account balance in USD"""
+    """Get account balance in USD based on exchange type"""
     try:
         if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
             if EXCHANGE == "ASTER":
@@ -334,7 +361,7 @@ def get_account_balance(account=None):
                 balance = balance_dict.get('available', 0) 
                 cprint(f"💰 {EXCHANGE} Available Balance: ${balance:,.2f} USD", "cyan")
                 
-            else:
+            else:  # HYPERLIQUID
                 address = os.getenv("ACCOUNT_ADDRESS")
                 if not address:
                     if account is None:
@@ -359,6 +386,7 @@ def get_account_balance(account=None):
             return float(balance)
             
         else:
+            # SOLANA
             balance = n.get_token_balance_usd(USDC_ADDRESS)
             return balance
             
@@ -366,8 +394,9 @@ def get_account_balance(account=None):
         cprint(f"❌ Error getting account balance: {e}", "red")
         return 0
 
+
 def calculate_position_size(account_balance):
-    """Calculate position size based on MAX_POSITION_PERCENTAGE"""
+    """Calculate position size based on account balance and MAX_POSITION_PERCENTAGE"""
     if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
         margin_to_use = account_balance * (MAX_POSITION_PERCENTAGE / 100)
         notional_position = margin_to_use * LEVERAGE
@@ -381,6 +410,7 @@ def calculate_position_size(account_balance):
 
         return notional_position
     else:
+        # For Solana: No leverage, direct position size
         position_size = account_balance * (MAX_POSITION_PERCENTAGE / 100)
 
         cprint(f"   📊 Position Calculation (SOLANA):", "yellow", attrs=['bold'])
@@ -390,32 +420,16 @@ def calculate_position_size(account_balance):
 
         return position_size
 
-def cleanup_temp_files():
-    """Clean old temp files at cycle start"""
-    temp_dir = Path("agent_data/temp")
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    
-    cleaned = 0
-    for file in temp_dir.glob("*"):
-        try:
-            if time.time() - file.stat().st_mtime > 3600:
-                file.unlink()
-                cleaned += 1
-        except Exception as e:
-            agent_logger.warning(f"Could not delete {file.name}: {e}")
-    
-    if cleaned > 0:
-        agent_logger.info(f"🧹 Cleaned {cleaned} old temp files")
-
 # ============================================================================
 # TRADING AGENT CLASS
 # ============================================================================
 
 class TradingAgent:
     def __init__(self):
+        # Initialize Account object with auto-cleaning for keys
         self.account = None
         if EXCHANGE == "HYPERLIQUID":
-            cprint("🔐 Initializing Hyperliquid Account...", "cyan")
+            cprint("🔑 Initializing Hyperliquid Account...", "cyan")
             try:
                 raw_key = (
                    os.getenv("HYPER_LIQUID_KEY", "")
@@ -433,6 +447,7 @@ class TradingAgent:
                 cprint(f"❌ Error loading key: {e}", "red")
                 sys.exit(1)
 
+        # Check if using swarm mode or single model
         if USE_SWARM_MODE:
             cprint(
                 f"\n🌊 Initializing Trading Agent in SWARM MODE (6 AI consensus)...",
@@ -447,7 +462,7 @@ class TradingAgent:
             if self.model:
                 cprint(f"✅ Allocation model ready: {self.model.model_name}", "green")
         else:
-            cprint(f"Initializing Trading Agent with {AI_MODEL_TYPE} model...", "cyan")
+            cprint(f"\n🤖 Initializing Trading Agent with {AI_MODEL_TYPE} model...", "cyan")
             self.model = model_factory.get_model(AI_MODEL_TYPE, AI_MODEL_NAME)
             self.swarm = None
 
@@ -464,6 +479,7 @@ class TradingAgent:
             columns=["token", "action", "confidence", "reasoning"]
         )
 
+        # Show which tokens will be analyzed
         cprint("\n🎯 Active Tokens for Trading:", "yellow", attrs=["bold"])
         if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
             tokens_to_show = SYMBOLS
@@ -490,10 +506,11 @@ class TradingAgent:
             cprint("   ⚡ LONG/SHORT - Full directional trading", "green")
             cprint("   💡 SELL signals can close longs OR open shorts", "white")
 
-        cprint("\n 🤖 LLM Trading Agent initialized!", "green")
+        cprint("\n🤖 LLM Trading Agent initialized!", "green")
+        log_and_print("\n🤖 LLM Trading Agent initialized!", "success")
 
     def chat_with_ai(self, system_prompt, user_content):
-        """Send prompt to AI model"""
+        """Send prompt to AI model via model factory"""
         try:
             response = self.model.generate_response(
                 system_prompt=system_prompt,
@@ -511,9 +528,10 @@ class TradingAgent:
             return None
 
     def _format_market_data_for_swarm(self, token, market_data):
-        """Format market data for swarm analysis"""
+        """Format market data into a clean, readable format for swarm analysis"""
         try:
-            cprint(f"\n 📊 MARKET DATA RECEIVED FOR {token[:8]}...", "cyan", attrs=["bold"])
+            cprint(f"\n📊 MARKET DATA RECEIVED FOR {token[:8]}...", "cyan", attrs=["bold"])
+            log_and_print(f"\n📊 MARKET DATA RECEIVED FOR {token[:8]}...", "info")
 
             if isinstance(market_data, pd.DataFrame):
                 cprint(f"✅ DataFrame received: {len(market_data)} bars", "green")
@@ -553,7 +571,7 @@ FULL DATASET:
             return str(market_data)
 
     def _calculate_swarm_consensus(self, swarm_result):
-        """Calculate consensus from swarm votes"""
+        """Calculate consensus from individual swarm responses"""
         try:
             votes = {"BUY": 0, "SELL": 0, "NOTHING": 0}
             model_votes = []
@@ -603,7 +621,7 @@ FULL DATASET:
             return "NOTHING", 0, f"Error calculating consensus: {str(e)}"
 
     def fetch_all_open_positions(self):
-        """Fetch all open positions"""
+        """Fetch all open positions across all symbols"""
         cprint("\n" + "=" * 60, "cyan")
         cprint("📊 FETCHING ALL OPEN POSITIONS", "white", "on_blue", attrs=["bold"])
         cprint("=" * 60, "cyan")
@@ -644,20 +662,22 @@ FULL DATASET:
                 continue
 
         if not all_positions:
-            cprint("ℹ️  No open positions found", "yellow")
-           
+            cprint("   ℹ️  No open positions found", "yellow")
+
         cprint("=" * 60 + "\n", "cyan")
         return all_positions
 
     def analyze_open_positions_with_ai(self, positions_data, market_data):
-        """AI analyzes positions and decides KEEP or CLOSE"""
+        """AI analyzes open positions and decides KEEP or CLOSE for each"""
         if not positions_data:
             return {}
 
         cprint("\n" + "=" * 60, "yellow")
-        cprint(" 🤖 AI ANALYZING OPEN POSITIONS", "white", "on_magenta", attrs=["bold"])
+        cprint("🤖 AI ANALYZING OPEN POSITIONS", "white", "on_magenta", attrs=["bold"])
+        log_and_print("🤖 AI ANALYZING OPEN POSITIONS", "info")
         cprint("=" * 60, "yellow")
 
+        # Build position summary
         position_summary = []
         for symbol, positions in positions_data.items():
             for pos in positions:
@@ -670,6 +690,7 @@ FULL DATASET:
                     "age_hours": pos["age_hours"],
                 })
 
+        # Format market conditions
         market_summary = {}
         for symbol in positions_data.keys():
             if symbol in market_data:
@@ -677,6 +698,7 @@ FULL DATASET:
                 if not df.empty:
                     latest = df.iloc[-1]
 
+                    # Robustly detect the correct close column
                     if "Close" in df.columns:
                         current_price = latest["Close"]
                     elif "close" in df.columns:
@@ -688,7 +710,7 @@ FULL DATASET:
                     elif "price" in df.columns:
                         current_price = latest["price"]
                     else:
-                        cprint(f"⚠️ No close price column for {symbol}", "yellow")
+                        cprint(f"⚠️ No close price column found for {symbol}, skipping...", "yellow")
                         continue
 
                     market_summary[symbol] = {
@@ -708,7 +730,7 @@ CURRENT MARKET CONDITIONS:
 {json.dumps(market_summary, indent=2)}
 
 For each position, decide KEEP or CLOSE with reasoning.
-Return ONLY valid JSON with this structure:
+Return ONLY valid JSON with the following structure:
 {{
   "SYMBOL": {{
      "action": "KEEP" or "CLOSE",
@@ -719,14 +741,16 @@ Return ONLY valid JSON with this structure:
         try:
             response = self.chat_with_ai(POSITION_ANALYSIS_PROMPT, user_prompt)
 
+            # --- Strip Markdown fences if model wrapped response in code blocks ---
             if "```json" in response:
                 response = response.split("```json")[1].split("```")[0]
             elif "```" in response:
                 response = response.split("```")[1].split("```")[0]
 
+            # --- Try safe JSON extraction first ---
             decisions = extract_json_from_text(response)
             if not decisions:
-                cprint("⚠️ AI response not valid JSON. Text fallback...", "yellow")
+                cprint("⚠️ AI response not valid JSON. Attempting text fallback...", "yellow")
 
                 text = response.lower()
                 decisions = {}
@@ -735,12 +759,12 @@ Return ONLY valid JSON with this structure:
                         if "close" in text or "sell" in text:
                             decisions[symbol] = {
                                 "action": "CLOSE",
-                                "reasoning": "Detected CLOSE or SELL keyword.",
+                                "reasoning": "Detected CLOSE or SELL keyword in fallback parsing.",
                             }
                         elif "keep" in text or "hold" in text or "open" in text:
                             decisions[symbol] = {
                                 "action": "KEEP",
-                                "reasoning": "Detected KEEP/HOLD keyword.",
+                                "reasoning": "Detected KEEP/HOLD keyword in fallback parsing.",
                             }
                         else:
                             decisions[symbol] = {
@@ -753,18 +777,22 @@ Return ONLY valid JSON with this structure:
                             "reasoning": "Symbol not mentioned, default KEEP.",
                         }
 
-                cprint(f"🧠 Fallback decisions: {decisions}", "cyan")
+                cprint(f"🧠 Fallback interpreted decisions: {decisions}", "cyan")
 
             if not decisions:
-                cprint("❌ Could not interpret AI analysis", "red")
+                cprint("❌ Error: Could not interpret AI analysis at all.", "red")
+                cprint(f"   Raw response: {response}", "yellow")
                 return {}
 
+            # --- Print parsed decisions cleanly ---
             cprint("\n🎯 AI POSITION DECISIONS:", "white", "on_magenta", attrs=["bold"])
             for symbol, decision in decisions.items():
                 action = decision.get("action", "UNKNOWN")
                 reason = decision.get("reasoning", "")
                 color = "red" if action.upper() == "CLOSE" else "green"
                 cprint(f"   {symbol:<10} → {action:<6} | {reason}", color)
+                log_and_print(f"AI Decision → {symbol}: {action} | {reason}", "info")
+
 
             cprint("=" * 60 + "\n", "yellow")
             return decisions
@@ -776,7 +804,7 @@ Return ONLY valid JSON with this structure:
             return {}
 
     def execute_position_closes(self, close_decisions):
-        """Execute position closes"""
+        """Execute closes for positions marked by AI"""
         if not close_decisions:
             return
 
@@ -795,6 +823,7 @@ Return ONLY valid JSON with this structure:
                     n.close_complete_position(symbol, self.account)
 
                     cprint(f"✅ {symbol} position closed successfully", "green", attrs=["bold"])
+                    log_and_print(f"✅ Closed {symbol} | Reason: {decision['reasoning']}", "success")
                    
                     closed_count += 1
                     time.sleep(2)
@@ -817,12 +846,13 @@ Return ONLY valid JSON with this structure:
         cprint("=" * 60 + "\n", "red")
 
     def analyze_market_data(self, token, market_data):
-        """Analyze market data with AI"""
+        """Analyze market data using AI model (single or swarm mode)"""
         try:
             if token in EXCLUDED_TOKENS:
-                print(f"⚠️ Skipping excluded token: {token}")
+                print(f"⚠️ Skipping analysis for excluded token: {token}")
                 return None
 
+            # Fetch current position context
             position_context = "CURRENT POSITION: None (You have no exposure)."
 
             try:
@@ -847,9 +877,10 @@ Return ONLY valid JSON with this structure:
 
             cprint(f"   ℹ️  Context: {position_context}", "cyan")
 
+            # SWARM MODE
             if USE_SWARM_MODE:
                 cprint(
-                    f"\n🌊 Analyzing {token[:8]}... with SWARM",
+                    f"\n🌊 Analyzing {token[:8]}... with SWARM (6 AI models voting)",
                     "cyan",
                     attrs=["bold"],
                 )
@@ -889,6 +920,7 @@ Return ONLY valid JSON with this structure:
                 cprint(f"✅ Swarm analysis complete for {token[:8]}!", "green")
                 return swarm_result
 
+            # SINGLE MODEL MODE
             else:
                 if "strategy_signals" in market_data:
                     strategy_context = (
@@ -922,7 +954,7 @@ Return ONLY valid JSON with this structure:
                             confidence = 50
 
                 reasoning = (
-                    "\n".join(lines[1:]) if len(lines) > 1 else "No detailed reasoning"
+                    "\n".join(lines[1:]) if len(lines) > 1 else "No detailed reasoning provided"
                 )
 
                 self.recommendations_df = pd.concat(
@@ -942,6 +974,9 @@ Return ONLY valid JSON with this structure:
                     ignore_index=True,
                 )
 
+                log_and_print(f"🎯 AI Analysis Complete for {token[:4]}!", "success")
+                log_and_print(f"Reasoning for {token[:4]}:\n{reasoning}", "info")
+
                 return response
 
         except Exception as e:
@@ -955,7 +990,7 @@ Return ONLY valid JSON with this structure:
                                 "token": token,
                                 "action": "NOTHING",
                                 "confidence": 0,
-                                "reasoning": f"Error: {str(e)}",
+                                "reasoning": f"Error during analysis: {str(e)}",
                             }
                         ]
                     ),
@@ -965,10 +1000,11 @@ Return ONLY valid JSON with this structure:
             return None
 
     def allocate_portfolio(self):
-        """AI-based portfolio allocation"""
+        """Get AI-recommended portfolio allocation"""
         try:
             cprint("\n💰 Calculating optimal portfolio allocation...", "cyan")
 
+            # Filter only BUY recommendations
             buy_recommendations = self.recommendations_df[
                 self.recommendations_df["action"] == "BUY"
             ]
@@ -977,11 +1013,13 @@ Return ONLY valid JSON with this structure:
                 cprint("✅ No BUY recommendations. Skipping allocation.", "green")
                 return {}
 
+            # Get account balance (equity)
             account_balance = get_account_balance(self.account)
             if account_balance <= 0:
                 cprint("❌ Account balance is zero. Cannot allocate.", "red")
                 return None
 
+            # Calculate position sizing
             max_position_size = account_balance * (MAX_POSITION_PERCENTAGE / 100)
 
             cprint(
@@ -990,11 +1028,13 @@ Return ONLY valid JSON with this structure:
                 "cyan",
             )
 
+            # Token set depends on exchange type
             if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
                 available_tokens = SYMBOLS
             else:
                 available_tokens = MONITORED_TOKENS
 
+            # --- AI prompt for allocation ---
             allocation_prompt = f"""You are our Portfolio Allocation AI 🌙
 
 Given:
@@ -1007,64 +1047,82 @@ Given:
 Provide a portfolio allocation that:
 1. Never exceeds max position size per token
 2. Maintains minimum cash buffer
-3. Returns allocation as JSON with token addresses as keys and USD amounts as values
-4. Uses exact USDC address: {USDC_ADDRESS} for cash
+3. Returns allocation as a JSON object with token addresses as keys and USD amounts as values
+4. Uses exact USDC address: {USDC_ADDRESS} for cash allocation
 
-Example:
+Example format:
 {{
     "token_address": amount_in_usd,
-    "{USDC_ADDRESS}": remaining_cash
+    "{USDC_ADDRESS}": remaining_cash_amount
 }}"""
 
+            # --- Compose user context ---
             user_content = f"""
-Total Portfolio: ${account_balance:,.2f} USD
-Max Position: ${max_position_size:,.2f} per token
-
-BUY Signals:
+Total Portfolio Size: ${account_balance:,.2f} USD
+Trading Recommendations (BUY signals only):
 {buy_recommendations.to_string()}
 """
 
+            # --- Call AI model ---
             response = self.chat_with_ai(allocation_prompt, user_content)
 
             if not response:
-                cprint("❌ No response from AI for allocation", "red")
+                cprint("❌ No response from AI for portfolio allocation", "red")
                 return None
 
+            # --- Safely parse JSON ---
             allocations = extract_json_from_text(response)
             if not allocations:
-                cprint("❌ Error parsing allocation JSON", "red")
+                cprint("❌ Error parsing allocation JSON: No JSON object found in the response", "red")
+                cprint(f"   Raw response: {response}", "yellow")
                 return None
 
+            # --- Normalize keys if AI returned string literal 'USDC_ADDRESS' ---
             if "USDC_ADDRESS" in allocations and USDC_ADDRESS not in allocations:
                 amount = allocations.pop("USDC_ADDRESS")
                 allocations[USDC_ADDRESS] = amount
 
-            valid_allocations = {}
-            for k, v in allocations.items():
-                try:
-                    amount = float(v)
-                    if amount > 0:
-                        valid_allocations[k] = amount
-                except (ValueError, TypeError):
-                    cprint(f"⚠️ Skipping invalid allocation: {k} = {v}", "yellow")
-
-            total_allocated = sum(valid_allocations.values())
-
-            if total_allocated > 0 and abs(total_allocated - account_balance) > 1:
-                scale_factor = account_balance / total_allocated
-                cprint(f"⚙️ Scaling allocations by {scale_factor:.2f}x", "yellow")
-                for k in valid_allocations:
+            # --- Validate and normalize allocations ---
+            valid_allocations = {k: float(v) for k, v in allocations.items()
+                                if isinstance(v, (int, float, str)) and str(v).replace('.', '', 1).isdigit()}
+            total_margin = sum(valid_allocations.values())
+            target_margin = account_balance * (MAX_POSITION_PERCENTAGE / 100)
+        
+            # --- Scale allocations to use 90% of equity ---
+            if total_margin > 0:
+                scale_factor = target_margin / total_margin
+                for k in valid_allocations.keys():
                     valid_allocations[k] = round(valid_allocations[k] * scale_factor, 2)
-
+        
+            # --- Enforce minimum trade size (≥ $12 notional) ---
+            min_margin = 12 / LEVERAGE
+            adjusted = False
+            for k, v in valid_allocations.items():
+                if k == USDC_ADDRESS:
+                    continue  # skip cash buffer
+                if v < min_margin:
+                    cprint(f"⚠️ Raising {k} from ${v:.2f} to minimum ${min_margin:.2f}", "yellow")
+                    valid_allocations[k] = round(min_margin, 2)
+                    adjusted = True
+        
+            # --- Rebalance if any raises occurred ---
+            if adjusted:
+                total_margin = sum(v for k, v in valid_allocations.items() if k != USDC_ADDRESS)
+                scale_factor = target_margin / total_margin
+                for k in valid_allocations.keys():
+                    if k != USDC_ADDRESS:
+                        valid_allocations[k] = round(valid_allocations[k] * scale_factor, 2)
+        
             allocations = valid_allocations
 
+            # --- Pretty print allocation ---
             cprint("\n📊 AI Portfolio Allocation:", "green", attrs=["bold"])
             for token, amount in allocations.items():
                 token_display = "USDC (Cash)" if token == USDC_ADDRESS else token
                 try:
                     cprint(f"   • {token_display}: ${float(amount):,.2f}", "green")
                 except (ValueError, TypeError):
-                    cprint(f"   • {token_display}: {amount} (Invalid)", "red")
+                    cprint(f"   • {token_display}: {amount} (Invalid Amount)", "red")
 
             return allocations
 
@@ -1075,9 +1133,9 @@ BUY Signals:
             return None
 
     def execute_allocations(self, allocation_dict):
-        """Execute portfolio allocations"""
+        """Execute the allocations using AI entry for each position"""
         try:
-            print("\n🚀 Executing portfolio allocations...")
+            print("\n🚀 Moon Dev executing portfolio allocations...")
 
             for token, amount in allocation_dict.items():
                 if token in EXCLUDED_TOKENS:
@@ -1094,10 +1152,10 @@ BUY Signals:
 
                     target_allocation = amount
 
-                    print(f"🎯 Target: ${target_allocation:.2f} USD")
-                    print(f"📊 Current: ${current_position:.2f} USD")
+                    print(f"🎯 Target allocation: ${target_allocation:.2f} USD")
+                    print(f"📊 Current position: ${current_position:.2f} USD")
                     effective_value = float(target_allocation) * LEVERAGE
-                    print(f"⚡ Exposure ({LEVERAGE}x): ${effective_value:.2f}")
+                    print(f"⚡ Trade exposure (with {LEVERAGE}x): ${effective_value:.2f}")
 
                     if current_position < target_allocation:
                         print(f"✨ Executing entry for {token}")
@@ -1110,14 +1168,25 @@ BUY Signals:
                             n.ai_entry(token, amount)
 
                         print(f"✅ Entry complete for {token}")
+                        log_and_print(f"🚀 Opened new {token} position for ${amount:.2f}", "success")
+
                     
+                        # Log position open
                         try:
+                            import sys
+                            from pathlib import Path
+                            parent_dir = Path(__file__).parent.parent
+                            if str(parent_dir) not in sys.path:
+                                sys.path.insert(0, str(parent_dir))
+                            from trading_app import log_position_open
+                            
+                            # Determine position value (with leverage)
                             notional_value = float(amount) * LEVERAGE
                             log_position_open(token, "LONG", notional_value)
                         except Exception:
                             pass
                     else:
-                        print(f"⏸️ Position already at target for {token}")
+                        print(f"⏸️ Position already at target size for {token}")
 
                 except Exception as e:
                     print(f"❌ Error executing entry for {token}: {str(e)}")
@@ -1126,9 +1195,10 @@ BUY Signals:
 
         except Exception as e:
             print(f"❌ Error executing allocations: {str(e)}")
+            print("🔧 Moon Dev suggests checking the logs and trying again!")
 
     def handle_exits(self):
-        """Handle position exits based on signals"""
+        """Check and exit positions based on SELL recommendations"""
         import inspect
 
         cprint("\n🔄 Checking for positions to exit...", "white", "on_blue")
@@ -1154,20 +1224,22 @@ BUY Signals:
             cprint(f"{'=' * 60}", "cyan")
 
             if current_position > 0:
+                # ============= CASE: HAVE POSITION =============
                 if action == "SELL":
-                    cprint("🚨 SELL signal with position - CLOSING", "white", "on_red")
+                    cprint("🚨 SELL signal with position - CLOSING POSITION", "white", "on_red")
                     try:
                         if EXCHANGE == "HYPERLIQUID":
                             n.close_complete_position(token, self.account)
                         else:
                             n.chunk_kill(token, max_usd_order_size, slippage)
                         cprint("✅ Position closed successfully!", "white", "on_green")
+                        log_and_print(f"Closed {token} position due to signal", "warning")
 
                     except Exception as e:
                         cprint(f"❌ Error closing position: {str(e)}", "white", "on_red")
 
                 elif action == "NOTHING":
-                    cprint("⏸️  DO NOTHING signal - HOLDING", "white", "on_blue")
+                    cprint("⏸️  DO NOTHING signal - HOLDING POSITION", "white", "on_blue")
                     cprint(f"💎 Maintaining ${current_position:.2f} position", "cyan")
 
                 else:
@@ -1175,23 +1247,28 @@ BUY Signals:
                     cprint(f"💎 Maintaining ${current_position:.2f} position", "cyan")
 
             else:
+                # ============= CASE: NO POSITION =============
                 if action == "SELL":
                     if LONG_ONLY:
-                        cprint("⭐️  SELL signal but NO POSITION to close", "white", "on_blue")
-                        cprint("📊 LONG ONLY mode: Can't open short", "cyan")
+                        cprint("⏭️  SELL signal but NO POSITION to close", "white", "on_blue")
+                        cprint("📊 LONG ONLY mode: Can't open short, doing nothing", "cyan")
                     else:
                         account_balance = get_account_balance(self.account)
                         position_size = calculate_position_size(account_balance)
 
-                        cprint("📉 SELL signal - OPENING SHORT", "white", "on_red")
-                        cprint(f"⚡ Opening ${position_size:,.2f} short", "yellow")
+                        cprint("📉 SELL signal with no position - OPENING SHORT", "white", "on_red")
+                        cprint(f"⚡ {EXCHANGE} mode: Opening ${position_size:,.2f} short position", "yellow")
 
                         try:
+                            # Dynamically detect which function to use
                             if hasattr(n, "open_short"):
                                 fn = n.open_short
+                                cprint(f"📉 Executing open_short (${position_size:,.2f})...", "yellow")
                             else:
                                 fn = n.market_sell
+                                cprint(f"📉 Executing market_sell (${position_size:,.2f})...", "yellow")
 
+                            # Build kwargs dynamically depending on function signature
                             params = inspect.signature(fn).parameters
                             kwargs = {}
                             if "leverage" in params:
@@ -1201,23 +1278,35 @@ BUY Signals:
                             if "slippage" in params:
                                 kwargs["slippage"] = slippage
 
+                            # Safe function call
                             fn(token, position_size, **kwargs)
 
-                            cprint("✅ Short position opened!", "white", "on_green")
+                            cprint("✅ Short position opened successfully!", "white", "on_green")
+                            log_and_print(f"📉 Opened new {token} SHORT position", "success")
 
+                            
+                            # Log short position open
                             try:
+                                import sys
+                                from pathlib import Path
+                                parent_dir = Path(__file__).parent.parent
+                                if str(parent_dir) not in sys.path:
+                                    sys.path.insert(0, str(parent_dir))
+                                from trading_app import log_position_open
+                                
                                 log_position_open(token, "SHORT", position_size)
                             except Exception:
                                 pass
 
                         except Exception as e:
-                            cprint(f"❌ Error opening short: {str(e)}", "white", "on_red")
+                            cprint(f"❌ Error opening short position: {str(e)}", "white", "on_red")
 
                 elif action == "NOTHING":
                     cprint("⏸️  DO NOTHING signal with no position", "white", "on_blue")
-                    cprint("⭐️  Staying out of market", "cyan")
+                    cprint("⏭️  Staying out of market", "cyan")
 
                 else:
+                    # BUY signal with no position
                     cprint("📈 BUY signal with no position", "white", "on_green")
 
                     if USE_PORTFOLIO_ALLOCATION:
@@ -1238,10 +1327,13 @@ BUY Signals:
                                 success = n.ai_entry(token, position_size)
 
                             if success:
-                                cprint("✅ LONG Position opened!", "white", "on_green")
+                                cprint("✅ LONG Position opened successfully!", "white", "on_green")
+                                log_and_print(f"📈 Opened new {token} LONG position", "success")
 
+                                
                                 time.sleep(2)
 
+                                # Verify position
                                 try:
                                     if EXCHANGE == "HYPERLIQUID":
                                         raw_pos_data = n.get_position(token, self.account)
@@ -1253,25 +1345,33 @@ BUY Signals:
                                     if im_in_pos and pos_size != 0:
                                         cprint(f"📊 Confirmed: Position Active (Size: {pos_size})", "green", attrs=["bold"])
                                         
+                                        # Log position open
                                         try:
+                                            import sys
+                                            from pathlib import Path
+                                            parent_dir = Path(__file__).parent.parent
+                                            if str(parent_dir) not in sys.path:
+                                                sys.path.insert(0, str(parent_dir))
+                                            from trading_app import log_position_open
+                                            
                                             notional_value = float(position_size) * LEVERAGE
                                             log_position_open(token, "LONG", notional_value)
                                         except Exception:
                                             pass
                                     else:
-                                        cprint("⚠️  Warning: Position verification failed", "yellow")
+                                        cprint("⚠️  Warning: Position verification failed - no position found!", "yellow")
 
                                 except Exception as e:
-                                    cprint(f"⚠️  Verification error: {e}", "yellow")
+                                    cprint(f"⚠️  Verification check error: {e}", "yellow")
 
                             else:
-                                cprint("❌ Position not opened", "white", "on_red")
+                                cprint("❌ Position not opened (check errors above)", "white", "on_red")
                                 
                         except Exception as e:
                             cprint(f"❌ Error opening position: {str(e)}", "white", "on_red")
 
     def show_final_portfolio_report(self):
-        """Display final portfolio status"""
+        """Display final portfolio status - NO LOOPS, just a snapshot"""
         cprint("\n" + "=" * 60, "cyan")
         cprint("📊 FINAL PORTFOLIO REPORT", "white", "on_blue", attrs=["bold"])
         cprint("=" * 60, "cyan")
@@ -1279,6 +1379,7 @@ BUY Signals:
         check_tokens = SYMBOLS if EXCHANGE in ["ASTER", "HYPERLIQUID"] else MONITORED_TOKENS
         active_positions = []
 
+        # Print header
         print(f"   {'TOKEN':<10} | {'SIDE':<10} | {'SIZE':<12} | {'ENTRY':<12} | {'PNL %':<10}")
         print("   " + "-" * 65)
 
@@ -1299,7 +1400,7 @@ BUY Signals:
                     active_positions.append(token)
 
             except Exception:
-                pass
+                pass  # Silently skip errors to keep report clean
 
         if not active_positions:
             cprint("   (No active positions)", "cyan")
@@ -1307,31 +1408,27 @@ BUY Signals:
         cprint("=" * 60 + "\n", "cyan")
 
     def run(self):
-        """Run trading agent (implements BaseAgent interface)"""
+        """Run the trading agent (implements BaseAgent interface)"""
         self.run_trading_cycle()
 
     def run_trading_cycle(self, strategy_signals=None):
-        """Enhanced trading cycle with memory management"""
-        
-        # CLEANUP TEMP FILES AT START
-        cleanup_temp_files()
-        
+        """Enhanced trading cycle with position management"""
         try:
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cprint(f"\n{'=' * 80}", "cyan")
             cprint(f"🔄 TRADING CYCLE START: {current_time}", "white", "on_green", attrs=["bold"])
             cprint(f"{'=' * 80}", "cyan")
 
-            # STEP 1: Fetch open positions
+            # STEP 1: FETCH ALL OPEN POSITIONS
             open_positions = self.fetch_all_open_positions()
 
-            # STEP 2: Collect market data
+            # STEP 2: COLLECT MARKET DATA
             if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
                 tokens_to_trade = SYMBOLS
             else:
                 tokens_to_trade = MONITORED_TOKENS
 
-            cprint("📊 Collecting market data...", "white", "on_blue")
+            cprint("📊 Collecting market data for analysis...", "white", "on_blue")
             market_data = collect_all_tokens(
                 tokens=tokens_to_trade,
                 days_back=DAYSBACK_4_DATA,
@@ -1339,16 +1436,16 @@ BUY Signals:
                 exchange=EXCHANGE,
             )
 
-            # STEP 3: AI analyzes open positions
+            # STEP 3: AI ANALYZES OPEN POSITIONS
             close_decisions = {}
             if open_positions:
                 close_decisions = self.analyze_open_positions_with_ai(open_positions, market_data)
                 self.execute_position_closes(close_decisions)
 
-            # STEP 4: Refetch after closures
-            time.sleep(2)
+            # STEP 4: REFETCH POSITIONS & MARKET DATA AFTER CLOSURES
+            time.sleep(2)  # short delay to allow exchange updates
             open_positions = self.fetch_all_open_positions()
-            cprint("📊 Refreshing market data...", "white", "on_blue")
+            cprint("📊 Refreshing market data after position updates...", "white", "on_blue")
             market_data = collect_all_tokens(
                 tokens=tokens_to_trade,
                 days_back=DAYSBACK_4_DATA,
@@ -1356,10 +1453,12 @@ BUY Signals:
                 exchange=EXCHANGE,
             )
 
-            # STEP 5: Analyze tokens for new entries
-            cprint("\n📈 Analyzing tokens for new opportunities...", "white", "on_blue")
+            # STEP 5: ANALYZE TOKENS FOR NEW ENTRIES
+            cprint("\n📈 Analyzing tokens for new entry opportunities...", "white", "on_blue")
             for token, data in market_data.items():
-                cprint(f" 🤖 Analyzing {token}...", "white", "on_green")
+                cprint(f"\n🤖 Analyzing {token}...", "white", "on_green")
+                log_and_print(f"\n🤖 Analyzing {token}...", "info")
+
 
                 if strategy_signals and token in strategy_signals:
                     data["strategy_signals"] = strategy_signals[token]
@@ -1370,17 +1469,12 @@ BUY Signals:
                     print(analysis)
                     print("\n" + "=" * 50 + "\n")
 
-            # STEP 6: Show recommendations
+            # STEP 6: SHOW RECOMMENDATIONS
             cprint("\n📊 AI TRADING RECOMMENDATIONS:", "white", "on_blue")
             summary_df = self.recommendations_df[["token", "action", "confidence"]].copy()
             print(summary_df.to_string(index=False))
 
-            if hasattr(self, 'recommendations_df') and len(self.recommendations_df) > 0:
-                buy = len(self.recommendations_df[self.recommendations_df["action"] == "BUY"])
-                sell = len(self.recommendations_df[self.recommendations_df["action"] == "SELL"])
-                hold = len(self.recommendations_df[self.recommendations_df["action"] == "NOTHING"])
-
-            # STEP 7: Handle exits & entries
+            # STEP 7: HANDLE EXITS & ENTRIES
             self.handle_exits()
             buy_recommendations = self.recommendations_df[self.recommendations_df["action"] == "BUY"]
 
@@ -1388,12 +1482,13 @@ BUY Signals:
                 allocation = self.allocate_portfolio()
                 if allocation:
                     cprint("\n💼 Executing portfolio allocations...", "white", "on_blue")
+                    log_and_print("\n💼 Executing portfolio allocations...", "info")
                     self.execute_allocations(allocation)
 
-            # STEP 8: Final report
+            # STEP 8: FINAL PORTFOLIO REPORT
             self.show_final_portfolio_report()
 
-            # Cleanup temp data
+            # Clean up temp data
             try:
                 if os.path.exists("temp_data"):
                     for file in os.listdir("temp_data"):
@@ -1402,22 +1497,16 @@ BUY Signals:
             except Exception as e:
                 cprint(f"⚠️ Error cleaning temp data: {e}", "yellow")
 
-            # MEMORY CLEANUP
-            if hasattr(self, 'recommendations_df'):
-                self.recommendations_df = self.recommendations_df.iloc[0:0]
-            
-            import gc
-            gc.collect()
-
             cprint(f"\n{'=' * 80}", "cyan")
             cprint("✅ TRADING CYCLE COMPLETE", "white", "on_green", attrs=["bold"])
+            log_and_print("Trading cycle complete", "success")
             cprint(f"{'=' * 80}\n", "cyan")
 
-            # Show balance summary
+            # --- Display Account Balance and Invested Totals ---
             try:
                 account_balance = get_account_balance(self.account)
             except Exception as e:
-                cprint(f"⚠️ Could not retrieve balance: {e}", "yellow")
+                cprint(f"⚠️ Could not retrieve account balance: {e}", "yellow")
                 account_balance = 0.0
 
             try:
@@ -1429,7 +1518,7 @@ BUY Signals:
                         entry_price = float(p.get("entry_price", 0))
                         invested_total += size * entry_price
             except Exception as e:
-                cprint(f"⚠️ Could not calculate invested: {e}", "yellow")
+                cprint(f"⚠️ Could not calculate invested total: {e}", "yellow")
                 invested_total = 0.0
 
             cprint(f"💰 Account Balance: ${account_balance:,.2f}", "cyan", attrs=["bold"])
@@ -1442,25 +1531,29 @@ BUY Signals:
 
 
 def main():
-    """Main function"""
-    agent_logger.info("🚀 AI Trading System Starting Up!")
+    """Main function - simple cycle every X minutes"""
+    cprint("🚀 AI Trading System Starting Up! 🚀", "white", "on_blue")
     print("🛑 Press Ctrl+C to stop.\n")
     
     agent = TradingAgent()
     
     while True:
         try:
+            # Run the complete cycle
             agent.run_trading_cycle()
             
+            # Sleep until next cycle
             next_run = datetime.now() + timedelta(minutes=SLEEP_BETWEEN_RUNS_MINUTES)
-            agent_logger.info(f"\n⏰ Next cycle at: {next_run.strftime('%H:%M:%S')}")
+            cprint(f"\n⏰ Next cycle at UTC: {next_run.strftime('%d-%m-%Y %H:%M:%S')}", "white", "on_green")
             time.sleep(SLEEP_BETWEEN_RUNS_MINUTES * 60)
+            log_and_print(f"\n⏰ Next cycle in {timedelta(minutes=SLEEP_BETWEEN_RUNS_MINUTES)} minutes"}, "info")
             
         except KeyboardInterrupt:
-            agent_logger.info("\n👋 AI Agent shutting down gracefully...")
+            cprint("\n👋 AI Agent shutting down gracefully...", "white", "on_blue")
+            log_and_print("\n👋 AI Agent shutting down gracefully...", "info")
             break
         except Exception as e:
-            agent_logger.error(f"\n❌ Error in main loop: {e}")
+            cprint(f"\n❌ Error in main loop: {e}", "white", "on_red")
             import traceback
             traceback.print_exc()
             time.sleep(SLEEP_BETWEEN_RUNS_MINUTES * 60)
