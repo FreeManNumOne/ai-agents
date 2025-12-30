@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌙 AI Trading Dashboard</title>
+    <title>AI Trading Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -14,57 +14,38 @@
         <!-- Header with Controls -->
         <header class="header">
             <div class="header-left">
-                <h1>🌙 AI Trading Dashboard</h1>
-                <span class="agent-badge" id="agent-badge">Ready</span>
+                <h1>AI Trading</h1>
+                <span class="agent-badge" id="agent-badge">ready</span>
             </div>
             <div class="header-right">
                 <span class="timestamp" id="timestamp">--:--:--</span>
-                <select id="timezone-select" class="timezone-select" onchange="updateTimezone()">
-                    <option value="local">Local Time</option>
-                    <option value="UTC">(GMT+0) UTC</option>
-                    <optgroup label="Americas">
-                        <option value="America/New_York">(GMT-5) New York</option>
-                        <option value="America/Chicago">(GMT-6) Chicago</option>
-                        <option value="America/Denver">(GMT-7) Denver</option>
-                        <option value="America/Los_Angeles">(GMT-8) Los Angeles</option>
-                        <option value="America/Toronto">(GMT-5) Toronto</option>
-                        <option value="America/Sao_Paulo">(GMT-3) São Paulo</option>
-                        <option value="America/Mexico_City">(GMT-6) Mexico City</option>
-                    </optgroup>
-                    <optgroup label="Europe">
-                        <option value="Europe/London">(GMT+0) London</option>
-                        <option value="Europe/Berlin">(GMT+1) Berlin</option>
-                        <option value="Europe/Zurich">(GMT+1) Zurich</option>
-                        <option value="Europe/Paris">(GMT+1) Paris</option>
-                        <option value="Europe/Amsterdam">(GMT+1) Amsterdam</option>
-                        <option value="Europe/Stockholm">(GMT+1) Stockholm</option>
-                        <option value="Europe/Moscow">(GMT+3) Moscow</option>
-                        <option value="Europe/Istanbul">(GMT+3) Istanbul</option>
-                    </optgroup>
-                    <optgroup label="Asia">
-                        <option value="Asia/Dubai">(GMT+4) Dubai</option>
-                        <option value="Asia/Singapore">(GMT+8) Singapore</option>
-                        <option value="Asia/Hong_Kong">(GMT+8) Hong Kong</option>
-                        <option value="Asia/Shanghai">(GMT+8) Shanghai</option>
-                        <option value="Asia/Tokyo">(GMT+9) Tokyo</option>
-                        <option value="Asia/Seoul">(GMT+9) Seoul</option>
-                        <option value="Asia/Bangkok">(GMT+7) Bangkok</option>
-                        <option value="Asia/Mumbai">(GMT+5:30) Mumbai</option>
-                    </optgroup>
-                    <optgroup label="Pacific">
-                        <option value="Australia/Sydney">(GMT+11) Sydney</option>
-                        <option value="Australia/Melbourne">(GMT+11) Melbourne</option>
-                        <option value="Pacific/Auckland">(GMT+13) Auckland</option>
-                    </optgroup>
-                </select>
-                <button class="btn btn-settings" onclick="openSettings()" title="Settings">⚙️ Settings</button>
-                <button class="btn btn-run" id="run-btn" onclick="runAgent()">▶ RUN</button>
-                <button class="btn btn-running" id="running-indicator" style="display:none;" onclick="stopAgent()" title="Click to stop agent">
-                    <span class="pulse-dot"></span> Running
+                <button class="icon-btn" id="run-btn" onclick="runAgent()" title="Run Agent">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                 </button>
-                <button class="btn btn-logout" onclick="logout()">Logout</button>
+                <button class="icon-btn icon-btn-stop" id="pause-btn" style="display:none;" onclick="stopAgent()" title="Stop Agent">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                </button>
+                <button class="icon-btn" onclick="toggleMenu()" title="Menu">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
             </div>
         </header>
+
+        <!-- Dropdown Menu -->
+        <div id="dropdown-menu" class="dropdown-menu">
+            <button class="menu-item" onclick="openSettings();toggleMenu();">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6m9.22-15.22l-4.24 4.24m-5.96 5.96l-4.24 4.24m16.48 0l-4.24-4.24m-5.96-5.96L2.78 2.78"></path></svg>
+                <span>Settings</span>
+            </button>
+            <button class="menu-item" onclick="openTimezoneModal();toggleMenu();">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span>Timezone</span>
+            </button>
+            <button class="menu-item" onclick="logout();toggleMenu();">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                <span>Logout</span>
+            </button>
+        </div>
 
         <!-- Account Summary -->
         <div class="account-summary">
@@ -159,7 +140,7 @@
 
                 <div class="setting-group">
                     <label for="tokens-input">Monitored Tokens (comma-separated)</label>
-                    <textarea id="tokens-input" class="setting-input" rows="3" placeholder="ETH, BTC, SOL, AAVE"></textarea>
+                    <textarea id="tokens-input" class="setting-input" rows="3" placeholder="ETH, BTC, SOL, AAVE, FARTCOIN"></textarea>
                 </div>
 
                 <div class="setting-group">
@@ -176,6 +157,59 @@
 
                 <div class="setting-group">
                     <button class="btn btn-run" style="width: 100%;" onclick="saveSettings()">Save Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timezone Modal -->
+    <div id="timezone-modal" class="modal" onclick="closeTimezoneModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2>Timezone</h2>
+                <button class="modal-close" onclick="closeTimezoneModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label for="timezone-select">Select Timezone</label>
+                    <select id="timezone-select" class="setting-input" onchange="updateTimezone()">
+                        <option value="local">Local Time</option>
+                        <option value="UTC">(GMT+0) UTC</option>
+                        <optgroup label="Americas">
+                            <option value="America/New_York">(GMT-5) New York</option>
+                            <option value="America/Chicago">(GMT-6) Chicago</option>
+                            <option value="America/Denver">(GMT-7) Denver</option>
+                            <option value="America/Los_Angeles">(GMT-8) Los Angeles</option>
+                            <option value="America/Toronto">(GMT-5) Toronto</option>
+                            <option value="America/Sao_Paulo">(GMT-3) São Paulo</option>
+                            <option value="America/Mexico_City">(GMT-6) Mexico City</option>
+                        </optgroup>
+                        <optgroup label="Europe">
+                            <option value="Europe/London">(GMT+0) London</option>
+                            <option value="Europe/Berlin">(GMT+1) Berlin</option>
+                            <option value="Europe/Zurich">(GMT+1) Zurich</option>
+                            <option value="Europe/Paris">(GMT+1) Paris</option>
+                            <option value="Europe/Amsterdam">(GMT+1) Amsterdam</option>
+                            <option value="Europe/Stockholm">(GMT+1) Stockholm</option>
+                            <option value="Europe/Moscow">(GMT+3) Moscow</option>
+                            <option value="Europe/Istanbul">(GMT+3) Istanbul</option>
+                        </optgroup>
+                        <optgroup label="Asia">
+                            <option value="Asia/Dubai">(GMT+4) Dubai</option>
+                            <option value="Asia/Singapore">(GMT+8) Singapore</option>
+                            <option value="Asia/Hong_Kong">(GMT+8) Hong Kong</option>
+                            <option value="Asia/Shanghai">(GMT+8) Shanghai</option>
+                            <option value="Asia/Tokyo">(GMT+9) Tokyo</option>
+                            <option value="Asia/Seoul">(GMT+9) Seoul</option>
+                            <option value="Asia/Bangkok">(GMT+7) Bangkok</option>
+                            <option value="Asia/Mumbai">(GMT+5:30) Mumbai</option>
+                        </optgroup>
+                        <optgroup label="Pacific">
+                            <option value="Australia/Sydney">(GMT+11) Sydney</option>
+                            <option value="Australia/Melbourne">(GMT+11) Melbourne</option>
+                            <option value="Pacific/Auckland">(GMT+13) Auckland</option>
+                        </optgroup>
+                    </select>
                 </div>
             </div>
         </div>

@@ -110,17 +110,60 @@ SYMBOLS = [
 # LOGGING UTILITIES
 # ============================================================================
 
+def rotate_log_files(log_dir, prefix, max_files=5, max_size_kb=300):
+    """Rotate log files, keeping only the most recent max_files with max size."""
+    import os
+
+    # Get all log files matching the pattern
+    log_files = sorted([f for f in log_dir.glob(f"{prefix}_*.log")],
+                      key=lambda x: x.stat().st_mtime, reverse=True)
+
+    # Remove old files if we exceed max_files
+    if len(log_files) >= max_files:
+        for old_file in log_files[max_files-1:]:
+            try:
+                old_file.unlink()
+            except Exception as e:
+                print(f"⚠️ Failed to remove old log file {old_file}: {e}")
+
+    # Check size of current log file
+    if log_files:
+        current_log = log_files[0]
+        size_kb = current_log.stat().st_size / 1024
+
+        if size_kb > max_size_kb:
+            # Create new log file with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            return log_dir / f"{prefix}_{timestamp}.log"
+
+    # Return current or new log file
+    if log_files and log_files[0].stat().st_size < max_size_kb * 1024:
+        return log_files[0]
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return log_dir / f"{prefix}_{timestamp}.log"
+
+
 def log_writer_worker():
-    """Background thread that batches log writes to avoid I/O bottleneck."""
+    """Background thread that batches log writes to avoid I/O bottleneck with rotating logs."""
     global log_writer_running
 
     log_buffer = []
     last_write_time = time.time()
     WRITE_INTERVAL = 2.0  # Write to disk every 2 seconds
 
-    # Persistent log directory
-    AGENT_DATA_DIR = DATA_DIR / "agent_data" / "logs"
-    AGENT_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # Local cache directory (in repo, not on server disk)
+    CACHE_DIR = BASE_DIR / ".cache" / "logs"
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Add to .gitignore
+    gitignore_file = BASE_DIR / ".gitignore"
+    if gitignore_file.exists():
+        with open(gitignore_file, 'r') as f:
+            content = f.read()
+        if '.cache/' not in content:
+            with open(gitignore_file, 'a') as f:
+                f.write('\n# Local cache directory\n.cache/\n')
 
     while log_writer_running:
         try:
@@ -155,11 +198,10 @@ def log_writer_worker():
                 with open(CONSOLE_FILE, 'w') as f:
                     json.dump(logs, f, indent=2)
 
-                # 2. Append to persistent daily log file (never truncated)
-                date_str = datetime.now().strftime("%Y-%m-%d")
-                daily_log_file = AGENT_DATA_DIR / f"app_{date_str}.log"
+                # 2. Append to rotating log files (max 5 files, 300KB each)
+                log_file = rotate_log_files(CACHE_DIR, "app", max_files=5, max_size_kb=300)
 
-                with open(daily_log_file, 'a') as f:
+                with open(log_file, 'a') as f:
                     for entry in log_buffer:
                         log_line = f"[{entry['timestamp']}] [{entry['level'].upper()}] {entry['message']}\n"
                         f.write(log_line)
@@ -188,11 +230,10 @@ def log_writer_worker():
             with open(CONSOLE_FILE, 'w') as f:
                 json.dump(logs, f, indent=2)
 
-            # Write to daily log file
-            date_str = datetime.now().strftime("%Y-%m-%d")
-            daily_log_file = AGENT_DATA_DIR / f"app_{date_str}.log"
+            # Write to rotating log file
+            log_file = rotate_log_files(CACHE_DIR, "app", max_files=5, max_size_kb=300)
 
-            with open(daily_log_file, 'a') as f:
+            with open(log_file, 'a') as f:
                 for entry in log_buffer:
                     log_line = f"[{entry['timestamp']}] [{entry['level'].upper()}] {entry['message']}\n"
                     f.write(log_line)

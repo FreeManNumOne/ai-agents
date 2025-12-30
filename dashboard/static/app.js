@@ -165,23 +165,23 @@ function updateTimestamp() {
 function updateAgentBadge(isRunning, isExecuting = false) {
     const badge = document.getElementById('agent-badge');
     const runBtn = document.getElementById('run-btn');
-    const runningIndicator = document.getElementById('running-indicator');
+    const pauseBtn = document.getElementById('pause-btn');
 
     if (isExecuting) {
-        badge.textContent = 'Analyzing';
+        badge.textContent = 'Running';
         badge.className = 'agent-badge running';
         runBtn.style.display = 'none';
-        runningIndicator.style.display = 'flex';
+        pauseBtn.style.display = 'inline-flex';
     } else if (isRunning) {
-        badge.textContent = 'Waiting';
+        badge.textContent = 'stand by';
         badge.className = 'agent-badge running';
         runBtn.style.display = 'none';
-        runningIndicator.style.display = 'flex';
+        pauseBtn.style.display = 'inline-flex';
     } else {
-        badge.textContent = 'Ready';
+        badge.textContent = 'ready';
         badge.className = 'agent-badge ready';
-        runBtn.style.display = 'inline-block';
-        runningIndicator.style.display = 'none';
+        runBtn.style.display = 'inline-flex';
+        pauseBtn.style.display = 'none';
     }
 }
 
@@ -668,6 +668,39 @@ function renderPortfolioChart(history) {
                     filter="drop-shadow(0 0 4px ${lineColor})"/>
         </svg>
     `;
+}
+
+// ============================================================================
+// MENU TOGGLE
+// ============================================================================
+
+function toggleMenu() {
+    const menu = document.getElementById('dropdown-menu');
+    menu.classList.toggle('show');
+}
+
+// Close menu when clicking outside
+document.addEventListener('click', (event) => {
+    const menu = document.getElementById('dropdown-menu');
+    const menuButton = event.target.closest('.icon-btn[onclick*="toggleMenu"]');
+
+    if (!menu.contains(event.target) && !menuButton) {
+        menu.classList.remove('show');
+    }
+});
+
+// ============================================================================
+// TIMEZONE MODAL
+// ============================================================================
+
+function openTimezoneModal() {
+    document.getElementById('timezone-modal').classList.add('show');
+}
+
+function closeTimezoneModal(event) {
+    if (!event || event.target.id === 'timezone-modal' || event.target.classList.contains('modal-close')) {
+        document.getElementById('timezone-modal').classList.remove('show');
+    }
 }
 
 console.log('✅ Dashboard ready');
