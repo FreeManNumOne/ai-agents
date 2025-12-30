@@ -76,28 +76,28 @@ SYMBOLS = [
 
 def add_console_log(message, level="info"):
     """Write log message to console_logs.json and print to stdout."""
-        try:
-            if CONSOLE_FILE.exists():
-                with open(CONSOLE_FILE, 'r') as f:
-                    logs = json.load(f)
-            else:
-                logs = []
+    try:
+        if CONSOLE_FILE.exists():
+            with open(CONSOLE_FILE, 'r') as f:
+                logs = json.load(f)
+        else:
+            logs = []
 
-            logs.append({
-                "timestamp": datetime.now().strftime("%H:%M:%S"),
-                "message": str(message),
-                "level": level
-            })
+        logs.append({
+            "timestamp": datetime.now().strftime("%H:%M:%S"),
+            "message": str(message),
+            "level": level
+        })
 
-            logs = logs[-200:]  # Keep last 200 entries
-            with open(CONSOLE_FILE, 'w') as f:
-                json.dump(logs, f, indent=2)
+        logs = logs[-200:]  # Keep last 200 entries
+         with open(CONSOLE_FILE, 'w') as f:
+            json.dump(logs, f, indent=2)
 
-            # Also print to console
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
+        # Also print to console
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
 
-        except Exception as e:
-            print(f"⚠️ Logging error: {e}")
+    except Exception as e:
+        print(f"⚠️ Logging error: {e}")
             
 # ============================================================================
 # IMPORT TRADING FUNCTIONS (Favoring src module)
