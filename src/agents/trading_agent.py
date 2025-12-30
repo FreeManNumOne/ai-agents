@@ -1413,6 +1413,7 @@ Trading Recommendations (BUY signals only):
 
     def run(self):
         """Run the trading agent (implements BaseAgent interface)"""
+        # 'self' is valid here because this is a class method
         self.run_trading_cycle()
 
     def run_trading_cycle(self, strategy_signals=None):
