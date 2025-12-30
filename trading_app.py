@@ -74,8 +74,8 @@ SYMBOLS = [
 # LOGGING UTILITIES
 # ============================================================================
 
-    def add_console_log(message, level="info"):
-        """Write log message to console_logs.json and print to stdout."""
+def add_console_log(message, level="info"):
+    """Write log message to console_logs.json and print to stdout."""
         try:
             if CONSOLE_FILE.exists():
                 with open(CONSOLE_FILE, 'r') as f:
