@@ -22,7 +22,7 @@ import atexit
 # SETUP & CONFIGURATION
 # ============================================================================
 
-# 🦈 EXCHANGE SELECTION
+# 🦈 EXCHANGE SELECTION (Default, will be overridden by agent config)
 EXCHANGE = "HYPERLIQUID"  # Options: "ASTER", "HYPERLIQUID", "SOLANA"
 
 # Add project root to Python path
@@ -71,6 +71,35 @@ SYMBOLS = [
 ]
 
 # ============================================================================
+# LOGGING UTILITIES
+# ============================================================================
+
+    def add_console_log(message, level="info"):
+        """Write log message to console_logs.json and print to stdout."""
+        try:
+            if CONSOLE_FILE.exists():
+                with open(CONSOLE_FILE, 'r') as f:
+                    logs = json.load(f)
+            else:
+                logs = []
+
+            logs.append({
+                "timestamp": datetime.now().strftime("%H:%M:%S"),
+                "message": str(message),
+                "level": level
+            })
+
+            logs = logs[-200:]  # Keep last 200 entries
+            with open(CONSOLE_FILE, 'w') as f:
+                json.dump(logs, f, indent=2)
+
+            # Also print to console
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
+
+        except Exception as e:
+            print(f"⚠️ Logging error: {e}")
+            
+# ============================================================================
 # IMPORT TRADING FUNCTIONS (Favoring src module)
 # ============================================================================
 EXCHANGE_CONNECTED = False
@@ -117,34 +146,7 @@ except ImportError:
         n = None
     
 
-# ============================================================================
-# LOGGING UTILITIES
-# ============================================================================
 
-    def add_console_log(message, level="info"):
-        """Write log message to console_logs.json and print to stdout."""
-        try:
-            if CONSOLE_FILE.exists():
-                with open(CONSOLE_FILE, 'r') as f:
-                    logs = json.load(f)
-            else:
-                logs = []
-
-            logs.append({
-                "timestamp": datetime.now().strftime("%H:%M:%S"),
-                "message": str(message),
-                "level": level
-            })
-
-            logs = logs[-200:]  # Keep last 200 entries
-            with open(CONSOLE_FILE, 'w') as f:
-                json.dump(logs, f, indent=2)
-
-            # Also print to console
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
-
-        except Exception as e:
-            print(f"⚠️ Logging error: {e}")
 
     # ============================================================================
     # AGENT STATE UTILITIES
@@ -571,7 +573,7 @@ def run_trading_agent():
     
     while agent_running and not stop_agent_flag:
         try:
-            add_console_log(f"Running analysis cycle", "info")
+            add_console_log(f"Running analysis cycle now...", "info")
             
             # ADD THIS - Set execution flag
             global agent_executing
@@ -601,7 +603,7 @@ def run_trading_agent():
                 from trading_agent import MONITORED_TOKENS as tokens
             
             # Log analysis start
-            add_console_log(f"\n🤖 Analyzing {len(tokens)} tokens", "info")
+            add_console_log(f"🤖 Analyzing {len(tokens)} tokens", "info")
             
             # Run the trading cycle
             agent.run_trading_cycle()
