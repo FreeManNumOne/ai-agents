@@ -90,7 +90,7 @@ def add_console_log(message, level="info"):
         })
 
         logs = logs[-200:]  # Keep last 200 entries
-         with open(CONSOLE_FILE, 'w') as f:
+        with open(CONSOLE_FILE, 'w') as f:
             json.dump(logs, f, indent=2)
 
         # Also print to console
