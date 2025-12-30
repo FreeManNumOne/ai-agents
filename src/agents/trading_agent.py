@@ -1152,14 +1152,29 @@ Trading Recommendations (BUY signals only):
     def execute_allocations(self, allocation_dict):
         """Execute the allocations using AI entry for each position"""
         try:
-            print("\n🚀 Moon Dev executing portfolio allocations...")
+            print("\n🚀 Executing portfolio allocations...")
+            add_console_log(f"🚀 Executing portfolio allocations...")
 
             for token, amount in allocation_dict.items():
                 if token in EXCLUDED_TOKENS:
                     print(f"💵 Keeping ${float(amount):.2f} in {token}")
                     continue
 
+               # ===== ADD TOKEN VALIDATION =====
+               if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
+                   if token not in SYMBOLS:
+                       cprint(f"⚠️ Skipping {token} - not a valid {EXCHANGE} symbol", "yellow")
+                       add_console_log(f"⚠️ Skipped invalid symbol: {token}", "warning")
+                       continue
+               else:
+                   if token not in MONITORED_TOKENS:
+                       cprint(f"⚠️ Skipping {token} - not in monitored tokens", "yellow")
+                       add_console_log(f"⚠️ Skipped invalid token: {token}", "warning")
+                       continue
+               # ===== END VALIDATION =====
+
                 print(f"\n🎯 Processing allocation for {token}...")
+                add_console_log(f"🎯 Processing allocation for {token}...")
 
                 try:
                     if EXCHANGE == "HYPERLIQUID":
@@ -1185,7 +1200,7 @@ Trading Recommendations (BUY signals only):
                             n.ai_entry(token, amount)
 
                         print(f"✅ Entry complete for {token}")
-                        add_console_log(f"🚀 Opened new {token} position for ${amount:.2f}", "success")
+                        add_console_log(f"✅ Opened new {token} position for ${amount:.2f}", "success")
 
                         # Log position open
                         try:
