@@ -31,6 +31,9 @@ EXCHANGE = "HYPERLIQUID"  # Options: "ASTER", "HYPERLIQUID", "SOLANA"
 BASE_DIR = Path(__file__).parent
 sys.path.insert(0, str(BASE_DIR))
 
+# Import shared logging utility (prevents circular imports)
+from src.utils.logging_utils import add_console_log, log_queue, log_position_open
+
 # Load environment variables
 load_dotenv()
 
@@ -44,16 +47,28 @@ app = Flask(
 )
 
 # Configure session (uses Flask's built-in server-side sessions)
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'kw-trader-secret-key-2025')
+# SECURITY: Secret key MUST be set in .env file for production!
+flask_secret = os.getenv('FLASK_SECRET_KEY')
+if not flask_secret:
+    print("⚠️ WARNING: FLASK_SECRET_KEY not set! Using insecure default.")
+    print("⚠️ Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\"")
+    flask_secret = 'INSECURE-DEFAULT-KEY-CHANGE-ME'
+
+app.config['SECRET_KEY'] = flask_secret
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
-# Login credentials (hardcoded as requested)
+# Login credentials (loaded from environment variables for security)
 VALID_CREDENTIALS = {
-    'username': 'KW-Trader',
-    'email': 'karmaworks.asia@gmail.com',
-    'password': 'Trader152535'
+    'username': os.getenv('DASHBOARD_USERNAME', ''),
+    'email': os.getenv('DASHBOARD_EMAIL', ''),
+    'password': os.getenv('DASHBOARD_PASSWORD', '')
 }
+
+# Validate credentials are set
+if not all(VALID_CREDENTIALS.values()):
+    print("⚠️ WARNING: Dashboard credentials not fully configured in .env!")
+    print("⚠️ Set DASHBOARD_USERNAME, DASHBOARD_EMAIL, and DASHBOARD_PASSWORD")
 
 # Enable CORS
 CORS(app)
@@ -76,7 +91,7 @@ stop_event = threading.Event()  # Event for clean shutdown signaling
 
 # Thread synchronization
 state_lock = threading.Lock()  # Lock for agent state variables
-log_queue = queue.Queue(maxsize=1000)  # Async logging queue
+# log_queue imported from src.utils.logging_utils
 log_writer_thread = None
 log_writer_running = False
 
@@ -186,31 +201,8 @@ def log_writer_worker():
             print(f"⚠️ Final log flush error: {e}")
 
 
-def add_console_log(message, level="info"):
-    """
-    Add a log message to console with level support
-
-    Args:
-        message (str): Log message text
-        level (str): Log level - "info", "success", "error", "warning", "trade"
-    """
-    try:
-        log_entry = {
-            "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "message": str(message),
-            "level": level
-        }
-
-        logs = logs[-50:]  # Keep last 50 logs
-
-        with open(CONSOLE_FILE, 'w') as f:
-            json.dump(logs, f, indent=2)
-
-        # Always print to console immediately
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
-
-    except Exception as e:
-        print(f"⚠️ Error saving console log: {e}")
+# add_console_log function now imported from src.utils.logging_utils
+# This prevents circular imports and fixes the broken log reference bug
 
 # ============================================================================
 # IMPORT TRADING FUNCTIONS (Favoring src module)
@@ -505,14 +497,7 @@ def save_trade(trade_data):
     except Exception as e:
         print(f"⚠️ Error saving trade: {e}")
 
-def log_position_open(symbol, side, size_usd):
-    """Log when a position is opened"""
-    try:
-        emoji = "📈" if side == "LONG" else "📉"
-        message = f"{emoji} Opened {side} {symbol} ${size_usd:.2f}"
-        add_console_log(message, "trade")
-    except Exception as e:
-        print(f"⚠️ Error logging position open: {e}")
+# log_position_open function now imported from src.utils.logging_utils
 
 
 def get_console_logs():
