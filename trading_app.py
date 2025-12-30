@@ -78,6 +78,36 @@ try:
     import nice_funcs_hyperliquid as n
     from eth_account import Account
 
+    # ============================================================================
+# LOGGING UTILITIES
+# ============================================================================
+
+    def add_console_log(message, level="info"):
+        """Write log message to console_logs.json and print to stdout."""
+        try:
+            if CONSOLE_FILE.exists():
+                with open(CONSOLE_FILE, 'r') as f:
+                    logs = json.load(f)
+            else:
+                logs = []
+
+            logs.append({
+                "timestamp": datetime.now().strftime("%H:%M:%S"),
+                "message": str(message),
+                "level": level
+            })
+
+            logs = logs[-200:]  # Keep last 200 entries
+            with open(CONSOLE_FILE, 'w') as f:
+                json.dump(logs, f, indent=2)
+
+            # Also print to console
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
+
+        except Exception as e:
+            print(f"⚠️ Logging error: {e}")
+
+
     def _get_account():
         """Get HyperLiquid account from environment"""
         key = os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "")
