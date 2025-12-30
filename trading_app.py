@@ -458,7 +458,7 @@ if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     print(f"""
 {'=' * 60}
-Marco's AI Trading Dashboard
+Started: Your AI Trading Dashboard
 {'=' * 60}
 Dashboard URL: http://0.0.0.0:{port}
 Local URL: http://localhost:{port}
