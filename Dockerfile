@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
  && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+WORKDIR /app/main
 
 # Keep python quiet and unbuffered (good for logs)
 ENV PYTHONDONTWRITEBYTECODE=1
