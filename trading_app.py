@@ -569,38 +569,40 @@ def run_trading_agent():
     """Run the trading agent in a loop with output capture"""
     global agent_running, stop_agent_flag
     
-    add_console_log("Trading agent started", "success")
+    add_console_log("AI Trading agent started", "success")
+    
+    # Import trading agent at the top of the function
+    try:
+        from src.agents.trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS, SLEEP_BETWEEN_RUNS_MINUTES
+        trading_agent_module = "src.agents.trading_agent"
+    except ImportError:
+        try:
+            from trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS, SLEEP_BETWEEN_RUNS_MINUTES
+            trading_agent_module = "trading_agent"
+        except ImportError:
+            import sys
+            sys.path.insert(0, str(BASE_DIR / "src" / "agents"))
+            from trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS, SLEEP_BETWEEN_RUNS_MINUTES
+            trading_agent_module = "trading_agent (sys.path)"
+    
+    add_console_log(f"Loaded trading_agent from: {trading_agent_module}", "info")
+    add_console_log(f"Using exchange: {EXCHANGE}", "info")
     
     while agent_running and not stop_agent_flag:
         try:
-            add_console_log(f"Running analysis cycle now...", "info")
-            
-            # ADD THIS - Set execution flag
-            global agent_executing
-            agent_executing = True
+            add_console_log(f"Running analysis cycle", "info")
             
             # Capture start time
             cycle_start = time.time()
             
-            # Import trading agent
-            try:
-                from src.agents.trading_agent import TradingAgent
-            except ImportError:
-                try:
-                    from trading_agent import TradingAgent
-                except ImportError:
-                    import sys
-                    sys.path.insert(0, str(BASE_DIR / "src" / "agents"))
-                    from trading_agent import TradingAgent
-            
             # Create agent instance
             agent = TradingAgent()
             
-            # Get tokens list
+            # Get tokens list based on exchange
             if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
-                from src.agents.trading_agent import SYMBOLS as tokens
+                tokens = SYMBOLS
             else:
-                from src.agents.trading_agent import MONITORED_TOKENS as tokens
+                tokens = MONITORED_TOKENS
             
             # Log analysis start
             add_console_log(f"🤖 Analyzing {len(tokens)} tokens", "info")
@@ -612,9 +614,6 @@ def run_trading_agent():
             cycle_duration = int(time.time() - cycle_start)
             
             add_console_log(f"Cycle complete ({cycle_duration}s)", "success")
-
-            # Clear execution flag
-            agent_executing = False
             
             # Get recommendations summary
             if hasattr(agent, 'recommendations_df') and len(agent.recommendations_df) > 0:
@@ -624,13 +623,12 @@ def run_trading_agent():
                 
                 add_console_log(f"Signals: {buy_count} BUY, {sell_count} SELL, {nothing_count} HOLD", "trade")
 
-            from trading_agent import SLEEP_BETWEEN_RUNS_MINUTES as minutes
-            # Wait 60 minutes before next cycle
-            add_console_log("✅ Finished Trading cycle...", "info")
-            add_console_log("Next cycle starts in minutes", "info")
+            # Wait before next cycle
+            add_console_log("✅ Finished trading cycle", "info")
+            add_console_log(f"Next cycle starts in {SLEEP_BETWEEN_RUNS_MINUTES} minutes", "info")
             
             # Wait with stop flag checking every minute
-            for i in range(60):
+            for i in range(SLEEP_BETWEEN_RUNS_MINUTES):
                 if stop_agent_flag:
                     add_console_log("Stop signal received", "info")
                     break
