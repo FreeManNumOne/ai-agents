@@ -425,23 +425,21 @@ def calculate_position_size(account_balance):
 # ============================================================================
 
 class TradingAgent:
-    def __init__(self):
-       self.account = None
-    if EXCHANGE == "HYPERLIQUID":
-        cprint("🔑 Initializing Hyperliquid Account...", "cyan")
-        try:
-            # Prioritize the standardized key name used by the dashboard
-            raw_key = (
-                os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "") 
-                or os.getenv("HYPER_LIQUID_KEY", "")
-            )
-            
-            clean_key = raw_key.strip().replace('"', '').replace("'", "")
-            if not clean_key:
-                raise ValueError("Private Key not found in .env")
+    def __init__(self):  # Ensure 'self' is here
+        self.account = None
+        if EXCHANGE == "HYPERLIQUID":
+            cprint("🔑 Initializing Hyperliquid Account...", "cyan")
+            try:
+                # Standardized key lookup
+                raw_key = os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "") or os.getenv("HYPER_LIQUID_KEY", "")
+                clean_key = raw_key.strip().replace('"', '').replace("'", "")
                 
-            self.account = Account.from_key(clean_key)
-            self.address = os.getenv("ACCOUNT_ADDRESS")
+                if not clean_key:
+                    raise ValueError("Private Key not found in .env")
+                
+                # This is where your error is triggering
+                self.account = Account.from_key(clean_key) 
+                self.address = os.getenv("ACCOUNT_ADDRESS")
             
             if not self.address:
                 self.address = self.account.address
