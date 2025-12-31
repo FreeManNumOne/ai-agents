@@ -151,7 +151,7 @@ LONG_ONLY = False
 # 🤖 SINGLE MODEL SETTINGS
 AI_MODEL_TYPE = 'gemini' 
 AI_MODEL_NAME = 'gemini-2.5-pro'  # Fast Gemini 2.5 model
-AI_TEMPERATURE = 0.6   
+AI_TEMPERATURE = 0.3   
 AI_MAX_TOKENS = 3000   
 
 # 💰 POSITION SIZING & RISK MANAGEMENT
@@ -179,7 +179,8 @@ slippage = 199
 SLEEP_BETWEEN_RUNS_MINUTES = 60  
 
 # 🎯 TOKEN CONFIGURATION
-address = "ACCOUNT_ADDRESS" 
+# Note: Account address is loaded from .env via os.getenv("ACCOUNT_ADDRESS")
+# or from self.account.address in TradingAgent.__init__()
 
 # For SOLANA exchange
 USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" 
@@ -196,6 +197,7 @@ SYMBOLS = [
     'AAVE',       # Aave
     'LINK',       # Chainlink
     'LTC',        # Litecoin
+    'HYPE',       # Hyperliquid Exchange Token
     'FARTCOIN',   # FartCoin (for the fun)
 ]
 
@@ -321,8 +323,9 @@ RESPOND WITH ONLY ONE WORD: Buy, Sell, or Do Nothing"""
 POSITION_ANALYSIS_PROMPT = """
 You are an expert crypto trading analyst. Your task is to analyze the user's open positions based on the provided position summaries and current market data.
 
-For EACH symbol, decide whether the user should **KEEP** the position open or **CLOSE** it. 
-Explain briefly the reasoning behind each decision (e.g., "Trend weakening, RSI overbought").
+For EACH symbol, decide whether the user should **KEEP** the position open or **CLOSE** it.
+
+⚠️ CRITICAL: When suggesting CLOSE, you MUST provide a confidence level (0-100%) indicating how certain you are that the position is WRONG and should be closed.
 
 ⚠️ CRITICAL OUTPUT RULES:
 - You MUST respond ONLY with a valid JSON object – no commentary, no Markdown, no code fences.
@@ -332,13 +335,18 @@ Explain briefly the reasoning behind each decision (e.g., "Trend weakening, RSI 
 {
   "BTC": {
     "action": "KEEP",
-    "reasoning": "Trend remains bullish; RSI under 60"
+    "reasoning": "Trend remains bullish; RSI under 60",
+    "confidence": 0
   },
   "ETH": {
     "action": "CLOSE",
-    "reasoning": "Breakdown below MA40 with weak RSI"
+    "reasoning": "Breakdown below MA40 with weak RSI",
+    "confidence": 85
   }
 }
+
+- "confidence" is 0-100 (only used for CLOSE decisions, set to 0 for KEEP)
+- Confidence represents how certain you are that closing is the RIGHT decision
 
 Do not include ```json or any other formatting around the JSON.
 Respond ONLY with the raw JSON object.
@@ -677,6 +685,52 @@ FULL DATASET:
         cprint("=" * 60 + "\n", "cyan")
         return all_positions
 
+    def validate_close_decision(self, symbol, pnl_percent, age_hours, ai_confidence):
+        """
+        3-Tier validation system to prevent premature position closes.
+
+        Returns: (should_close: bool, reason: str)
+        """
+        # Calculate minimum age based on timeframe and bars back
+        # Example: 30m timeframe * 2 days back (96 bars) = ~48 hours of data
+        # Minimum age = at least 1 hour for proper evolution
+        timeframe_minutes = {
+            '1m': 1, '5m': 5, '15m': 15, '30m': 30,
+            '1h': 60, '4h': 240, '1d': 1440
+        }
+
+        tf_mins = timeframe_minutes.get(DATA_TIMEFRAME, 30)
+        # Minimum age: at least 60 minutes (1 hour) for proper position evolution
+        min_age_hours = max(1.0, tf_mins * DAYSBACK_4_DATA / 60)
+
+        cprint(f"\n🔍 VALIDATING CLOSE DECISION FOR {symbol}:", "yellow", attrs=["bold"])
+
+        # CHECK 1: Is profit >= 0.5%?
+        if pnl_percent >= 0.5:
+            cprint(f"   ✅ CHECK 1 PASSED: Profit {pnl_percent:.2f}% >= 0.5%", "green")
+            cprint(f"   💡 Reason: Taking profit", "white")
+            return True, "Profit >= 0.5% (taking profit)"
+        else:
+            cprint(f"   ⚠️  CHECK 1 FAILED: Profit {pnl_percent:.2f}% < 0.5%", "yellow")
+
+        # CHECK 2: Position age check
+        if age_hours < min_age_hours:
+            cprint(f"   ❌ CHECK 2 FAILED: Position too young ({age_hours:.1f}h < {min_age_hours:.1f}h minimum)", "red")
+            cprint(f"   🛡️  FORCING KEEP - Let position evolve", "cyan", attrs=["bold"])
+            return False, f"Position too young ({age_hours:.1f}h < {min_age_hours:.1f}h) - needs time to evolve"
+        else:
+            cprint(f"   ✅ CHECK 2 PASSED: Position age {age_hours:.1f}h >= {min_age_hours:.1f}h", "green")
+
+        # CHECK 3: AI confidence >= 80%?
+        if ai_confidence >= 80:
+            cprint(f"   ✅ CHECK 3 PASSED: AI confidence {ai_confidence}% >= 80%", "green")
+            cprint(f"   💡 Reason: High confidence close signal", "white")
+            return True, f"High AI confidence ({ai_confidence}%) that position is wrong"
+        else:
+            cprint(f"   ❌ CHECK 3 FAILED: AI confidence {ai_confidence}% < 80%", "red")
+            cprint(f"   🛡️  FORCING KEEP - AI not confident enough", "cyan", attrs=["bold"])
+            return False, f"AI confidence too low ({ai_confidence}% < 80%) - let position evolve"
+
     def analyze_open_positions_with_ai(self, positions_data, market_data):
         """AI analyzes open positions and decides KEEP or CLOSE for each"""
         if not positions_data:
@@ -770,21 +824,25 @@ Return ONLY valid JSON with the following structure:
                             decisions[symbol] = {
                                 "action": "CLOSE",
                                 "reasoning": "Detected CLOSE or SELL keyword in fallback parsing.",
+                                "confidence": 50  # Default confidence for fallback
                             }
                         elif "keep" in text or "hold" in text or "open" in text:
                             decisions[symbol] = {
                                 "action": "KEEP",
                                 "reasoning": "Detected KEEP/HOLD keyword in fallback parsing.",
+                                "confidence": 0
                             }
                         else:
                             decisions[symbol] = {
                                 "action": "KEEP",
                                 "reasoning": "No clear directive, default KEEP.",
+                                "confidence": 0
                             }
                     else:
                         decisions[symbol] = {
                             "action": "KEEP",
                             "reasoning": "Symbol not mentioned, default KEEP.",
+                            "confidence": 0
                         }
 
                 cprint(f"🧠 Fallback interpreted decisions: {decisions}", "cyan")
@@ -794,17 +852,71 @@ Return ONLY valid JSON with the following structure:
                 cprint(f"   Raw response: {response}", "yellow")
                 return {}
 
-            # Print parsed decisions cleanly
-            cprint("\n🎯 AI POSITION DECISIONS:", "white", "on_magenta", attrs=["bold"])
+            # ============================================================================
+            # APPLY 3-TIER VALIDATION SYSTEM
+            # ============================================================================
+            cprint("\n" + "=" * 60, "magenta")
+            cprint("🛡️  APPLYING 3-TIER VALIDATION SYSTEM", "white", "on_magenta", attrs=["bold"])
+            cprint("=" * 60, "magenta")
+
+            validated_decisions = {}
             for symbol, decision in decisions.items():
+                action = decision.get("action", "KEEP")
+                reason = decision.get("reasoning", "")
+                ai_confidence = int(decision.get("confidence", 0))
+
+                if action.upper() == "CLOSE":
+                    # Get position data for validation
+                    pos_data = positions_data.get(symbol, [{}])[0]
+                    pnl_percent = pos_data.get("pnl_percent", 0)
+                    age_hours = pos_data.get("age_hours", 0)
+
+                    # Run validation
+                    should_close, validation_reason = self.validate_close_decision(
+                        symbol, pnl_percent, age_hours, ai_confidence
+                    )
+
+                    if should_close:
+                        validated_decisions[symbol] = {
+                            "action": "CLOSE",
+                            "reasoning": f"{reason} | Validation: {validation_reason}",
+                            "confidence": ai_confidence
+                        }
+                        cprint(f"✅ {symbol}: CLOSE APPROVED", "green", attrs=["bold"])
+                    else:
+                        validated_decisions[symbol] = {
+                            "action": "KEEP",
+                            "reasoning": f"AI suggested CLOSE but validation BLOCKED: {validation_reason}",
+                            "confidence": 0
+                        }
+                        cprint(f"🛡️  {symbol}: CLOSE BLOCKED → FORCING KEEP", "cyan", attrs=["bold"])
+                        add_console_log(f"🛡️  {symbol} CLOSE blocked: {validation_reason}", "warning")
+                else:
+                    # KEEP decision - no validation needed
+                    validated_decisions[symbol] = decision
+
+            # Print final validated decisions
+            cprint("\n" + "=" * 60, "magenta")
+            cprint("🎯 FINAL VALIDATED DECISIONS:", "white", "on_magenta", attrs=["bold"])
+            cprint("=" * 60, "magenta")
+
+            for symbol, decision in validated_decisions.items():
                 action = decision.get("action", "UNKNOWN")
                 reason = decision.get("reasoning", "")
+                confidence = decision.get("confidence", 0)
                 color = "red" if action.upper() == "CLOSE" else "green"
                 cprint(f"   {symbol:<10} → {action:<6} | {reason}", color)
-                add_console_log(f"AI Decision → {symbol}: {action} | {reason}", "info")
+                # Short format for dashboard: "SYMBOL -> ACTION"
+                add_console_log(f"{symbol} -> {action}", "info")
 
-            cprint("=" * 60 + "\n", "yellow")
-            return decisions
+                # Short format for dashboard
+                if action.upper() == "CLOSE":
+                    add_console_log(f"{symbol} -> CLOSE ({confidence}%)", "warning")
+                else:
+                    add_console_log(f"{symbol} -> KEEP", "info")
+
+            cprint("=" * 60 + "\n", "magenta")
+            return validated_decisions
 
         except Exception as e:
             cprint(f"❌ Error in AI analysis: {e}", "red")
@@ -928,10 +1040,8 @@ Return ONLY valid JSON with the following structure:
 
                 cprint(f"✅ Swarm analysis complete for {token[:8]}!", "green")
 
-                # Add short summary for dashboard
-                short_reasoning = reasoning.split('\n')[0][:40] if reasoning else "No reasoning"
-                summary = f"{action}, {short_reasoning.lower()} | {confidence}%"
-                add_console_log(f"   → {summary}", "info")
+                # Short format for dashboard: "TOKEN -> ACTION | CONFIDENCE%"
+                add_console_log(f"{token} -> {action} | {confidence}%", "info")
 
                 return swarm_result
 
@@ -991,10 +1101,8 @@ Return ONLY valid JSON with the following structure:
 
                 add_console_log(f"🎯 AI Analysis Complete for {token[:4]}!", "success")
 
-                # Add short summary for dashboard
-                short_reasoning = reasoning.split('\n')[0][:40] if reasoning else "No reasoning"
-                summary = f"{action}, {short_reasoning.lower()} | {confidence}%"
-                add_console_log(f"   → {summary}", "info")
+                # Short format for dashboard: "TOKEN -> ACTION | CONFIDENCE%"
+                add_console_log(f"{token} -> {action} | {confidence}%", "info")
 
                 return response
 
@@ -1154,14 +1262,16 @@ Trading Recommendations (BUY signals only):
                 k: float(v) for k, v in allocations.items()
                 if isinstance(v, (int, float, str)) and str(v).replace('.', '', 1).isdigit()
             }
-            total_margin = sum(valid_allocations.values())
+            # CRITICAL FIX: Exclude USDC cash buffer from total_margin calculation
+            total_margin = sum(v for k, v in valid_allocations.items() if k != USDC_ADDRESS)
             target_margin = account_balance * (MAX_POSITION_PERCENTAGE / 100)
-            
-            # Scale allocations to use 90% of equity
+
+            # Scale allocations to use 90% of equity (excluding USDC cash buffer)
             if total_margin > 0:
                 scale_factor = target_margin / total_margin
                 for k in valid_allocations.keys():
-                    valid_allocations[k] = round(valid_allocations[k] * scale_factor, 2)
+                    if k != USDC_ADDRESS:  # Don't scale USDC cash buffer
+                        valid_allocations[k] = round(valid_allocations[k] * scale_factor, 2)
             
             # Enforce minimum trade size (≥ $12 notional)
             min_margin = 12 / LEVERAGE
@@ -1235,44 +1345,50 @@ Trading Recommendations (BUY signals only):
 
                     target_allocation = amount
 
-                    print(f"🎯 Target allocation: ${target_allocation:.2f} USD")
-                    print(f"📊 Current position: ${current_position:.2f} USD")
-                    add_console_log(f"📊 {token} - Current: ${current_position:.2f}, Target: ${target_allocation:.2f}", "info")
-                    
-                    effective_value = float(target_allocation) * LEVERAGE
-                    print(f"⚡ Trade exposure (with {LEVERAGE}x): ${effective_value:.2f}")
-                    add_console_log(f"⚡ {token} exposure with {LEVERAGE}x leverage: ${effective_value:.2f}", "info")
+                    print(f"🎯 Target margin allocation: ${target_allocation:.2f} USD")
+                    print(f"📊 Current notional position: ${current_position:.2f} USD")
 
-                    if current_position < target_allocation:
+                    # Calculate effective trade size with leverage
+                    # For HyperLiquid: if target is $4 with 20x leverage, we buy $80 notional (only needs $4 margin)
+                    # For Solana: no leverage, so effective_value = target_allocation
+                    if EXCHANGE in ["HYPERLIQUID", "ASTER"]:
+                        effective_value = float(target_allocation) * LEVERAGE
+                        print(f"⚡ Target notional (with {LEVERAGE}x): ${effective_value:.2f} (margin: ${target_allocation:.2f})")
+                        add_console_log(f"⚡ {token} target: ${effective_value:.2f} notional | ${target_allocation:.2f} margin", "info")
+                    else:
+                        effective_value = float(target_allocation)  # Solana has no leverage
+                        print(f"💰 Trade size: ${effective_value:.2f}")
+
+                    # Compare current notional position against target notional position
+                    if current_position < (effective_value * 0.97):  # 97% threshold to avoid small adjustments
                         print(f"✨ Executing entry for {token}")
                         add_console_log(f"✨ Opening {token} position", "info")
 
                         if EXCHANGE == "HYPERLIQUID":
-                            cprint(f"🔵 HyperLiquid: ai_entry({token}, ${amount:.2f}, leverage={LEVERAGE})", "cyan")
-                            add_console_log(f"🔵 Executing: ai_entry({token}, ${amount:.2f}, {LEVERAGE}x)", "info")
-                            n.ai_entry(token, amount, leverage=LEVERAGE, account=self.account)
+                            cprint(f"🔵 HyperLiquid: ai_entry({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "cyan")
+                            add_console_log(f"🔵 Executing: ai_entry({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
+                            n.ai_entry(token, effective_value, leverage=LEVERAGE, account=self.account)
                         elif EXCHANGE == "ASTER":
-                            cprint(f"🟣 Aster: ai_entry({token}, ${amount:.2f}, leverage={LEVERAGE})", "cyan")
-                            add_console_log(f"🟣 Executing: ai_entry({token}, ${amount:.2f}, {LEVERAGE}x)", "info")
-                            n.ai_entry(token, amount, leverage=LEVERAGE)
+                            cprint(f"🟣 Aster: ai_entry({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "cyan")
+                            add_console_log(f"🟣 Executing: ai_entry({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
+                            n.ai_entry(token, effective_value, leverage=LEVERAGE)
                         else:
-                            cprint(f"🟢 Solana: ai_entry({token}, ${amount:.2f})", "cyan")
-                            add_console_log(f"🟢 Executing: ai_entry({token}, ${amount:.2f})", "info")
-                            n.ai_entry(token, amount)
+                            cprint(f"🟢 Solana: ai_entry({token}, ${effective_value:.2f})", "cyan")
+                            add_console_log(f"🟢 Executing: ai_entry({token}, ${effective_value:.2f})", "info")
+                            n.ai_entry(token, effective_value)
 
                         print(f"✅ Entry complete for {token}")
                         add_console_log(f"✅ {token} position opened successfully", "success")
 
                         # Log position open (using shared logging utility)
                         try:
-                            # Determine position value (with leverage)
-                            notional_value = float(amount) * LEVERAGE
-                            log_position_open(token, "LONG", notional_value)
+                            # Log the actual notional value opened
+                            log_position_open(token, "LONG", effective_value)
                         except Exception:
                             pass
-                    elif current_position > target_allocation:
+                    elif current_position > (effective_value * 1.03):  # 103% threshold to avoid small adjustments
                         # Need to REDUCE position
-                        reduction_amount = current_position - target_allocation
+                        reduction_amount = current_position - effective_value
 
                         if target_allocation == 0:
                             # Full close
@@ -1286,31 +1402,14 @@ Trading Recommendations (BUY signals only):
 
                             print(f"✅ Position closed for {token}")
                         else:
-                            # Partial reduction
-                            reduction_pct = (reduction_amount / current_position) * 100
-                            print(f"📉 Reducing {token} position by ${reduction_amount:.2f} ({reduction_pct:.0f}%)")
-                            add_console_log(f"📉 Reducing {token} by {reduction_pct:.0f}% (${reduction_amount:.2f})", "info")
-
-                            # Get current position details to determine side
-                            if EXCHANGE == "HYPERLIQUID":
-                                pos_data = n.get_position(token, self.account)
-                                _, im_in_pos, pos_size, _, _, _, is_long = pos_data
-
-                                if im_in_pos:
-                                    if is_long:
-                                        # Reduce LONG by selling
-                                        cprint(f"🔵 Selling ${reduction_amount:.2f} to reduce LONG", "yellow")
-                                        n.market_sell(token, reduction_amount, self.account)
-                                    else:
-                                        # Reduce SHORT by buying
-                                        cprint(f"🔵 Buying ${reduction_amount:.2f} to reduce SHORT", "yellow")
-                                        n.market_buy(token, reduction_amount, self.account)
-                            else:
-                                # For Solana/other exchanges
-                                n.chunk_kill(token, reduction_amount, slippage)
-
-                            print(f"✅ Position reduced for {token}")
-                            add_console_log(f"✅ {token} position reduced by {reduction_pct:.0f}%", "success")
+                            # CRITICAL: Partial reduction BLOCKED during position management
+                            # Position management is binary: KEEP (100%) or CLOSE (0%) only
+                            # Do NOT reduce positions partially - this prevents premature exits
+                            cprint(f"⏭️  Skipping partial reduction for {token}", "yellow")
+                            cprint(f"   Current: ${current_position:.2f}, Target: ${target_allocation:.2f}", "white")
+                            cprint(f"   💡 Position management is binary: KEEP or CLOSE only", "cyan")
+                            add_console_log(f"⏭️  {token} - Skipping partial reduction (position management = KEEP or CLOSE only)", "info")
+                            # Keep position as-is (100% allocation)
                     else:
                         print(f"⏸️ Position already at target size for {token}")
                         add_console_log(f"⏸️ {token} already at target - no action", "info")
