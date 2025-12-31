@@ -704,7 +704,7 @@ FULL DATASET:
         # Use instance variables instead of global constants
         tf_mins = timeframe_minutes.get(self.timeframe, 30)
         # Minimum age: at least 60 minutes (1 hour) for proper position evolution
-        min_age_hours = max(1.0, tf_mins * self.days_back / 60)
+        min_age_hours = max(0.08, tf_mins * self.days_back / 60)
 
         cprint(f"\n🔍 VALIDATING CLOSE DECISION FOR {symbol}:", "yellow", attrs=["bold"])
 
@@ -827,7 +827,7 @@ Return ONLY valid JSON with the following structure:
                             decisions[symbol] = {
                                 "action": "CLOSE",
                                 "reasoning": "Detected CLOSE or SELL keyword in fallback parsing.",
-                                "confidence": 50  # Default confidence for fallback
+                                "confidence": 60  # Default confidence for fallback
                             }
                         elif "keep" in text or "hold" in text or "open" in text:
                             decisions[symbol] = {
