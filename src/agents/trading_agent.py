@@ -197,8 +197,8 @@ from src.config import EXCHANGE as CONFIG_EXCHANGE
 # Convert to uppercase for consistency with checks throughout this file
 EXCHANGE = CONFIG_EXCHANGE.upper() if CONFIG_EXCHANGE else "HYPERLIQUID"
 
-# 🌊 AI MODE SELECTION
-USE_SWARM_MODE = False  # True = Swarm Mode (all Models), False = Single Model
+# 🌊 AI MODE SELECTION (Default - can be overridden by user settings)
+DEFAULT_SWARM_MODE = False  # True = Swarm Mode (all Models), False = Single Model
 
 # 📈 TRADING MODE SETTINGS
 LONG_ONLY = False 
@@ -502,7 +502,8 @@ def calculate_position_size(account_balance):
 class TradingAgent:
     def __init__(self, timeframe=None, days_back=None, stop_check_callback=None,
                  symbols=None, ai_provider=None, ai_model=None,
-                 ai_temperature=None, ai_max_tokens=None):
+                 ai_temperature=None, ai_max_tokens=None,
+                 swarm_mode=None, swarm_models=None):
         """
         Initialize Trading Agent with configurable settings
 
@@ -515,6 +516,8 @@ class TradingAgent:
             ai_model (str): AI model name to use. Defaults to AI_MODEL_NAME.
             ai_temperature (float): Temperature for AI model (0.0-1.0). Defaults to AI_TEMPERATURE.
             ai_max_tokens (int): Max tokens for AI response. Defaults to AI_MAX_TOKENS.
+            swarm_mode (str): 'single' or 'swarm'. Defaults to 'single'.
+            swarm_models (list): List of swarm model configs for multi-agent consensus.
         """
         # Store configurable settings as instance variables
         self.timeframe = timeframe if timeframe is not None else DATA_TIMEFRAME
@@ -526,6 +529,10 @@ class TradingAgent:
         self.ai_model_name = ai_model if ai_model is not None else AI_MODEL_NAME
         self.ai_temperature = ai_temperature if ai_temperature is not None else AI_TEMPERATURE
         self.ai_max_tokens = ai_max_tokens if ai_max_tokens is not None else AI_MAX_TOKENS
+
+        # Store swarm mode settings (use passed values or fall back to defaults)
+        self.use_swarm_mode = (swarm_mode == 'swarm') if swarm_mode is not None else DEFAULT_SWARM_MODE
+        self.swarm_models_config = swarm_models or []
 
         # Store symbols to analyze (use passed values or fall back to config)
         if symbols is not None:
@@ -558,14 +565,24 @@ class TradingAgent:
                 sys.exit(1)
 
         # Check if using swarm mode or single model
-        if USE_SWARM_MODE:
+        if self.use_swarm_mode:
+            # Convert user's swarm_models format to SwarmAgent's format
+            custom_models = self._build_swarm_models_config()
+            num_models = len(custom_models) if custom_models else 6
+
             cprint(
-                f"\n🌊 Initializing Trading Agent in SWARM MODE (6 AI consensus)...",
+                f"\n🌊 Initializing Trading Agent in SWARM MODE ({num_models} AI consensus)...",
                 "cyan",
                 attrs=["bold"]
             )
-            self.swarm = SwarmAgent()
-            cprint("✅ Swarm mode initialized with 6 AI models!", "green")
+
+            # Initialize SwarmAgent with custom models from user settings
+            if custom_models:
+                self.swarm = SwarmAgent(custom_models=custom_models)
+                cprint(f"✅ Swarm mode initialized with {num_models} user-configured AI models!", "green")
+            else:
+                self.swarm = SwarmAgent()
+                cprint("✅ Swarm mode initialized with default AI models!", "green")
 
             cprint("💼 Initializing fast model for portfolio calculations...", "cyan")
             self.model = model_factory.get_model(self.ai_provider, self.ai_model_name)
@@ -613,6 +630,42 @@ class TradingAgent:
 
         cprint("\n🤖 LLM Trading Agent initialized!", "green")
         add_console_log("🤖 LLM Trading Agent initialized!", "success")
+
+    def _build_swarm_models_config(self):
+        """
+        Convert user's swarm_models format to SwarmAgent's expected format.
+
+        User format (from settings):
+        [
+            {"provider": "gemini", "model": "gemini-2.5-flash", "temperature": 0.3, "max_tokens": 2000},
+            {"provider": "openai", "model": "gpt-4o", "temperature": 0.5, "max_tokens": 2000},
+            ...
+        ]
+
+        SwarmAgent format:
+        {
+            "gemini_1": (True, "gemini", "gemini-2.5-flash"),
+            "openai_2": (True, "openai", "gpt-4o"),
+            ...
+        }
+        """
+        if not self.swarm_models_config:
+            return None
+
+        custom_models = {}
+        for i, model_config in enumerate(self.swarm_models_config, 1):
+            provider = model_config.get('provider', 'gemini')
+            model_name = model_config.get('model', 'gemini-2.5-flash')
+
+            # Create unique key for each model (e.g., "gemini_1", "openai_2")
+            model_key = f"{provider}_{i}"
+
+            # SwarmAgent expects: (enabled, provider_type, model_name)
+            custom_models[model_key] = (True, provider, model_name)
+
+            cprint(f"   📦 Swarm Model {i}: {provider}/{model_name}", "cyan")
+
+        return custom_models if custom_models else None
 
     def chat_with_ai(self, system_prompt, user_content):
         """Send prompt to AI model via model factory"""
@@ -1133,9 +1186,10 @@ Return ONLY valid JSON with the following structure:
             cprint(f"   ℹ️  Context: {position_context}", "cyan")
 
             # SWARM MODE
-            if USE_SWARM_MODE:
+            if self.use_swarm_mode:
+                num_models = len(self.swarm.active_models) if self.swarm else 6
                 cprint(
-                    f"\n🌊 Analyzing {token[:8]}... with SWARM (6 AI models voting)",
+                    f"\n🌊 Analyzing {token[:8]}... with SWARM ({num_models} AI models voting)",
                     "cyan",
                     attrs=["bold"],
                 )
