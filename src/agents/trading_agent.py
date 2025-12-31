@@ -195,7 +195,6 @@ SYMBOLS = [
     'LINK',       # Chainlink
     'LTC',        # Litecoin
     'HYPE',       # Hyperliquid Token
-    'SILVER',     # SILVER RWA
     'FARTCOIN',   # FartCoin (for the fun)
 ]
 
