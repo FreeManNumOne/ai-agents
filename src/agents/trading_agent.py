@@ -176,7 +176,7 @@ SAVE_OHLCV_DATA = False
 
 # ⚡ TRADING EXECUTION SETTINGS
 slippage = 199                   
-SLEEP_BETWEEN_RUNS_MINUTES = 60  
+SLEEP_BETWEEN_RUNS_MINUTES = 5  
 
 # 🎯 TOKEN CONFIGURATION
 # Note: Account address is loaded from .env via os.getenv("ACCOUNT_ADDRESS")
