@@ -85,6 +85,7 @@ AGENT_STATE_FILE = DATA_DIR / "agent_state.json"
 # Agent control variables
 agent_thread = None
 agent_running = False  # Always start stopped - never auto-start
+agent_executing = False  # True when actively analyzing, False when waiting between cycles
 stop_agent_flag = False
 shutdown_in_progress = False
 stop_event = threading.Event()  # Event for clean shutdown signaling
@@ -599,7 +600,7 @@ def save_agent_state(state):
 
 def run_trading_agent():
     """Run the trading agent in a loop with output capture"""
-    global agent_running, stop_agent_flag
+    global agent_running, agent_executing, stop_agent_flag
 
     add_console_log("AI Trading agent started", "success")
 
@@ -644,8 +645,16 @@ def run_trading_agent():
             else:
                 tokens = MONITORED_TOKENS
 
+            # Set executing flag to True (agent is now actively analyzing)
+            with state_lock:
+                agent_executing = True
+
             # Run the trading cycle
             agent.run_trading_cycle()
+
+            # Set executing flag back to False (analysis complete, entering wait phase)
+            with state_lock:
+                agent_executing = False
 
             # Calculate cycle duration
             cycle_duration = int(time.time() - cycle_start)
@@ -670,6 +679,10 @@ def run_trading_agent():
                 break
 
         except Exception as e:
+            # Reset executing flag on error
+            with state_lock:
+                agent_executing = False
+
             error_msg = f"Cycle error: {str(e)}"
             add_console_log(error_msg, "error")
             import traceback
@@ -684,6 +697,7 @@ def run_trading_agent():
     # Clean shutdown
     with state_lock:
         agent_running = False
+        agent_executing = False
     add_console_log("Agent stopped", "info")
 
 # ============================================================================
@@ -915,6 +929,7 @@ def get_agent_status():
         state = load_agent_state()
         status = {
             "agent_running": agent_running,
+            "executing": agent_executing,  # True when actively analyzing
             "stop_requested": stop_agent_flag,
             "last_started": state.get("last_started"),
             "last_stopped": state.get("last_stopped"),

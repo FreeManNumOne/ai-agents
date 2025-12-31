@@ -45,11 +45,11 @@ async function updateDashboard() {
         // If agent is actively executing, do lightweight update
         if (agentStatus.executing) {
             console.log('[Dashboard] Agent executing - lightweight update only');
-            
+
             // Only update timestamp and agent badge (no API calls)
             updateTimestamp();
-            updateAgentBadge(agentStatus.running);
-            
+            updateAgentBadge(agentStatus.running, agentStatus.executing);
+
             return; // Skip heavy updates
         }
         
@@ -374,10 +374,10 @@ async function loadAgentState() {
         const data = await response.json();
         
         console.log('Agent state loaded:', data);
-        
+
         // Update UI based on persisted state
-        updateAgentBadge(data.running);
-        
+        updateAgentBadge(data.running, false);  // Not executing on initial load
+
         // Log last action info
         if (data.last_started) {
             const lastStart = new Date(data.last_started).toLocaleTimeString();
