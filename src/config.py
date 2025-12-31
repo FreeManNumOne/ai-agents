@@ -46,6 +46,8 @@ TOKEN_EXCHANGE_MAP = {
     'XRP': 'hyperliquid',
     'AAVE': 'hyperliquid',
     'LINK': 'hyperliquid',
+    'HYPE': 'hyperliquid',
+    'SILVER': 'hyperliquid',
     'FARTCOIN': 'hyperliquid',
 }
 
