@@ -169,9 +169,9 @@ usd_size = 25
 max_usd_order_size = 3           
 CASH_PERCENTAGE = 10
 
-# 📊 MARKET DATA COLLECTION
-DAYSBACK_4_DATA = 2              
-DATA_TIMEFRAME = '30m'            
+# 📊 MARKET DATA COLLECTION (Default values - can be overridden)
+DAYSBACK_4_DATA = 2              # Default: 2 days (overridable via __init__)
+DATA_TIMEFRAME = '30m'           # Default: 30 minutes (overridable via __init__)
 SAVE_OHLCV_DATA = False          
 
 # ⚡ TRADING EXECUTION SETTINGS
@@ -423,7 +423,18 @@ def calculate_position_size(account_balance):
 # ============================================================================
 
 class TradingAgent:
-    def __init__(self):
+    def __init__(self, timeframe=None, days_back=None):
+        """
+        Initialize Trading Agent with configurable settings
+
+        Args:
+            timeframe (str): Data timeframe (e.g., '5m', '30m', '1h'). Defaults to DATA_TIMEFRAME.
+            days_back (int): Days of historical data to fetch. Defaults to DAYSBACK_4_DATA.
+        """
+        # Store configurable settings as instance variables
+        self.timeframe = timeframe if timeframe is not None else DATA_TIMEFRAME
+        self.days_back = days_back if days_back is not None else DAYSBACK_4_DATA
+
         self.account = None
         if EXCHANGE == "HYPERLIQUID":
             cprint("🔑 Initializing Hyperliquid Account...", "cyan")
@@ -535,7 +546,7 @@ class TradingAgent:
             if isinstance(market_data, pd.DataFrame):
                 cprint(f"✅ DataFrame received: {len(market_data)} bars", "green")
                 cprint(f"📅 Date range: {market_data.index[0]} to {market_data.index[-1]}", "yellow")
-                cprint(f"🕐 Timeframe: {DATA_TIMEFRAME}", "yellow")
+                cprint(f"🕐 Timeframe: {self.timeframe}", "yellow")
 
                 cprint("\n📈 First 5 Bars (OHLCV):", "cyan")
                 print(market_data.head().to_string())
@@ -545,7 +556,7 @@ class TradingAgent:
 
                 formatted = f"""
 TOKEN: {token}
-TIMEFRAME: {DATA_TIMEFRAME} bars
+TIMEFRAME: {self.timeframe} bars
 TOTAL BARS: {len(market_data)}
 DATE RANGE: {market_data.index[0]} to {market_data.index[-1]}
 
@@ -1543,8 +1554,8 @@ Trading Recommendations (BUY signals only):
             cprint("📊 Collecting market data for analysis...", "white", "on_blue")
             market_data = collect_all_tokens(
                 tokens=tokens_to_trade,
-                days_back=DAYSBACK_4_DATA,
-                timeframe=DATA_TIMEFRAME,
+                days_back=self.days_back,
+                timeframe=self.timeframe,
                 exchange=EXCHANGE,
             )
             
@@ -1562,8 +1573,8 @@ Trading Recommendations (BUY signals only):
             cprint("📊 Refreshing market data after position updates...", "white", "on_blue")
             market_data = collect_all_tokens(
                 tokens=tokens_to_trade,
-                days_back=DAYSBACK_4_DATA,
-                timeframe=DATA_TIMEFRAME,
+                days_back=self.days_back,
+                timeframe=self.timeframe,
                 exchange=EXCHANGE,
             )
 
