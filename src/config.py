@@ -51,7 +51,7 @@ TOKEN_EXCHANGE_MAP = {
 }
 
 # 🛡️ Risk Management Settings (Tuned for $10 Account)
-CASH_PERCENTAGE = 10  # Keep 20% of account as backup
+CASH_PERCENTAGE = 10  # Keep 10% of account as backup
 MAX_POSITION_PERCENTAGE = 90  # Allow using full balance since account is small
 STOPLOSS_PRICE = 0    # Not used in this specific agent logic yet
 BREAKOUT_PRICE = 0
@@ -61,7 +61,11 @@ MAX_LOSS_GAIN_CHECK_HOURS = 12
 SLEEP_BETWEEN_RUNS_MINUTES = 1 # Check markets every minute
 
 # Max Loss/Gain Settings
-USE_PERCENTAGE = False 
+USE_PERCENTAGE = False
+
+# Percentage-based limits (used when USE_PERCENTAGE = True)
+MAX_LOSS_PERCENT = 10   # 10% max loss
+MAX_GAIN_PERCENT = 20   # 20% max gain
 
 # USD-based limits (Protective Stops)
 MAX_LOSS_USD = 2   # If we lose $2, stop trading (Protects your $10)
@@ -107,15 +111,16 @@ STRATEGY_MIN_CONFIDENCE = 0.6   # 60% confidence threshold
 symbol = 'SOL'
 tokens_to_trade = HYPERLIQUID_SYMBOLS
 MONITORED_TOKENS = []
-slippage = 199 
-PRIORITY_FEE = 100000 
+# NOTE: slippage is now defined only once at line 75 (0.01 = 1%)
+PRIORITY_FEE = 100000
 sell_at_multiple = 3
 USDC_SIZE = 1
 limit = 49
 timeframe = '15m'
-stop_loss_perctentage = -.24
+stop_loss_percentage = -0.24  # Fixed typo: was 'stop_loss_perctentage'
 EXIT_ALL_POSITIONS = False
 DO_NOT_TRADE_LIST = ['777']
 CLOSED_POSITIONS_TXT = '777'
 minimum_trades_in_last_hour = 2
+MIN_TRADES_LAST_HOUR = 2  # Alias for nice_funcs.py compatibility
 REALTIME_CLIPS_ENABLED = False
