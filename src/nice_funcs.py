@@ -38,8 +38,8 @@ def get_ai_response(prompt, system_message=None):
     # 💎 GOOGLE GEMINI LOGIC
     if "gemini" in model_name.lower():
         try:
-            # Configure Key
-            genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+            # Configure Key (GEMINI_KEY matches .env_example)
+            genai.configure(api_key=os.getenv("GEMINI_KEY"))
             
             # Select Model
             # Note: Gemini doesn't use 'system_message' the same way as GPT, 
@@ -303,7 +303,6 @@ def market_buy(token, amount, slippage=None):
     txId = http_client.send_raw_transaction(bytes(tx), TxOpts(skip_preflight=True)).value
     print(f"https://solscan.io/tx/{str(txId)}")
     return str(txId)  # Return the transaction ID for the calling function to use
-    return str(txId)  # Return the transaction ID for the calling function to use
 
 
 
@@ -354,23 +353,13 @@ def market_sell(QUOTE_TOKEN, amount, slippage=None):
 
 
 
-def get_time_range():
-
-    now = datetime.now()
-    ten_days_earlier = now - timedelta(days=10)
-    time_to = int(now.timestamp())
-    time_from = int(ten_days_earlier.timestamp())
-    #print(time_from, time_to)
-
-    return time_from, time_to
-
 import math
 def round_down(value, decimals):
     factor = 10 ** decimals
     return math.floor(value * factor) / factor
 
 
-def get_time_range(days_back):
+def get_time_range(days_back=10):
 
     now = datetime.now()
     ten_days_earlier = now - timedelta(days=days_back)
@@ -756,12 +745,26 @@ def pnl_close(token_mint_address):
     else:
         print(f'for {token_mint_address[:4]} value is {usd_value} and tp is {tp} so not closing...')
 
-def chunk_kill(token_mint_address, max_usd_order_size, slippage):
-    """Kill a position in chunks"""
+def chunk_kill(token_mint_address, max_usd_order_size, slippage, address=None):
+    """Kill a position in chunks
+
+    Args:
+        token_mint_address: The token to sell
+        max_usd_order_size: Maximum USD per order chunk
+        slippage: Slippage tolerance
+        address: Wallet address (defaults to SOLANA_WALLET_ADDRESS env var)
+    """
     cprint(f"\n🔪 Moon Dev's AI Agent initiating position exit...", "white", "on_cyan")
-    
+
+    # Get address from environment if not provided
+    if address is None:
+        address = os.getenv("SOLANA_WALLET_ADDRESS") or os.getenv("ACCOUNT_ADDRESS")
+        if not address:
+            cprint("❌ No wallet address provided or found in environment!", "white", "on_red")
+            return
+
     try:
-        # Get current position using address from config
+        # Get current position using address
         df = fetch_wallet_token_single(address, token_mint_address)
         if df.empty:
             cprint("❌ No position found to exit", "white", "on_red")
@@ -900,7 +903,18 @@ def kill_switch(token_mint_address):
 
     print('closing position in full...')
 
-def close_all_positions():
+def close_all_positions(address=None):
+    """Close all positions in wallet
+
+    Args:
+        address: Wallet address (defaults to SOLANA_WALLET_ADDRESS env var)
+    """
+    # Get address from environment if not provided
+    if address is None:
+        address = os.getenv("SOLANA_WALLET_ADDRESS") or os.getenv("ACCOUNT_ADDRESS")
+        if not address:
+            cprint("❌ No wallet address provided or found in environment!", "white", "on_red")
+            return
 
     # get all positions
     open_positions = fetch_wallet_holdings_og(address)
@@ -910,8 +924,8 @@ def close_all_positions():
         token_mint_address = row['Mint Address']
 
         # Check if the current token mint address is the USDC contract address
-        cprint(f'this is the token mint address {token_mint_address} this is don not trade list {dont_trade_list}', 'white', 'on_magenta')
-        if token_mint_address in dont_trade_list:
+        cprint(f'this is the token mint address {token_mint_address} this is do not trade list {DO_NOT_TRADE_LIST}', 'white', 'on_magenta')
+        if token_mint_address in DO_NOT_TRADE_LIST:
             print(f'Skipping kill switch for USDC contract at {token_mint_address}')
             continue  # Skip the rest of the loop for this iteration
 
@@ -980,7 +994,7 @@ def elegant_entry(symbol, buy_under):
     else: chunk_size = size_needed
 
     chunk_size = int(chunk_size * 10**6)
-    chunk_size = str(chunk_size)
+    # NOTE: Removed str() conversion - market_buy expects numeric value
 
     print(f'chunk_size: {chunk_size}')
 
@@ -1012,7 +1026,7 @@ def elegant_entry(symbol, buy_under):
             if size_needed > max_usd_order_size: chunk_size = max_usd_order_size
             else: chunk_size = size_needed
             chunk_size = int(chunk_size * 10**6)
-            chunk_size = str(chunk_size)
+            # chunk_size = str(chunk_size)  # REMOVED: market functions expect numeric values
 
         except:
 
@@ -1033,7 +1047,7 @@ def elegant_entry(symbol, buy_under):
                 if size_needed > max_usd_order_size: chunk_size = max_usd_order_size
                 else: chunk_size = size_needed
                 chunk_size = int(chunk_size * 10**6)
-                chunk_size = str(chunk_size)
+                # chunk_size = str(chunk_size)  # REMOVED: market functions expect numeric values
 
 
             except:
@@ -1048,7 +1062,7 @@ def elegant_entry(symbol, buy_under):
         if size_needed > max_usd_order_size: chunk_size = max_usd_order_size
         else: chunk_size = size_needed
         chunk_size = int(chunk_size * 10**6)
-        chunk_size = str(chunk_size)
+        # chunk_size = str(chunk_size)  # REMOVED: market functions expect numeric values
 
 
 # like the elegant entry but for breakout so its looking for price > BREAKOUT_PRICE
@@ -1063,7 +1077,7 @@ def breakout_entry(symbol, BREAKOUT_PRICE):
     else: chunk_size = size_needed
 
     chunk_size = int(chunk_size * 10**6)
-    chunk_size = str(chunk_size)
+    # chunk_size = str(chunk_size)  # REMOVED: market functions expect numeric values
 
     print(f'chunk_size: {chunk_size}')
 
@@ -1112,7 +1126,7 @@ def breakout_entry(symbol, BREAKOUT_PRICE):
             if size_needed > max_usd_order_size: chunk_size = max_usd_order_size
             else: chunk_size = size_needed
             chunk_size = int(chunk_size * 10**6)
-            chunk_size = str(chunk_size)
+            # chunk_size = str(chunk_size)  # REMOVED: market functions expect numeric values
 
         except:
 
@@ -1133,7 +1147,7 @@ def breakout_entry(symbol, BREAKOUT_PRICE):
                 if size_needed > max_usd_order_size: chunk_size = max_usd_order_size
                 else: chunk_size = size_needed
                 chunk_size = int(chunk_size * 10**6)
-                chunk_size = str(chunk_size)
+                # chunk_size = str(chunk_size)  # REMOVED: market functions expect numeric values
 
 
             except:
@@ -1148,7 +1162,7 @@ def breakout_entry(symbol, BREAKOUT_PRICE):
         if size_needed > max_usd_order_size: chunk_size = max_usd_order_size
         else: chunk_size = size_needed
         chunk_size = int(chunk_size * 10**6)
-        chunk_size = str(chunk_size)
+        # chunk_size = str(chunk_size)  # REMOVED: market functions expect numeric values
 
 
 
@@ -1184,7 +1198,7 @@ def ai_entry(symbol, amount):
         chunk_size = size_needed
 
     chunk_size = int(chunk_size * 10**6)
-    chunk_size = str(chunk_size)
+    # chunk_size = str(chunk_size)  # REMOVED: market functions expect numeric values
     
     cprint(f"💫 Entry chunk size: {chunk_size} (chunking ${size_needed:.2f} into ${max_usd_order_size:.2f} orders)", "white", "on_blue")
 
@@ -1220,7 +1234,7 @@ def ai_entry(symbol, amount):
             else: 
                 chunk_size = size_needed
             chunk_size = int(chunk_size * 10**6)
-            chunk_size = str(chunk_size)
+            # chunk_size = str(chunk_size)  # REMOVED: market functions expect numeric values
 
         except Exception as e:
             try:
@@ -1248,7 +1262,7 @@ def ai_entry(symbol, amount):
                 else: 
                     chunk_size = size_needed
                 chunk_size = int(chunk_size * 10**6)
-                chunk_size = str(chunk_size)
+                # chunk_size = str(chunk_size)  # REMOVED: market functions expect numeric values
 
             except:
                 cprint("❌ AI Agent encountered critical error, manual intervention needed", "white", "on_red")
@@ -1308,8 +1322,7 @@ def close_complete_position(symbol, account, slippage=0.01):
     print(f'{colored(f"📉 Closing complete position for {symbol}...", "yellow")}')
 
     # 1. Get current position size & direction
-    # Using print_debug=False to keep it clean
-    pos_data = get_position(symbol, account, print_debug=False)
+    pos_data = get_position(symbol, account)
     _, im_in_pos, pos_size, _, _, _, is_long = pos_data
 
     if not im_in_pos or pos_size == 0:
