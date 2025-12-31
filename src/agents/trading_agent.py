@@ -148,6 +148,20 @@ USE_SWARM_MODE = False  # True = Swarm Mode (all Models), False = Single Model
 # 📈 TRADING MODE SETTINGS
 LONG_ONLY = False 
 
+# ============================================================================
+# ⚙️ POSITION MANAGEMENT SETTINGS
+# ============================================================================
+# Minimum age before a position can be closed (in hours), Set to 0.0 to allow immediate exits
+# Examples: 0.0 = immediate, 0.25 = 15 min, 0.5 = 30 min, 1.0 = 1 hour
+MIN_AGE_HOURS = 0.0
+
+# AI confidence threshold for closing positions (percentage), Lower values = more aggressive closing, Higher values = more conservative
+# Recommended range: 60-80%
+MIN_CLOSE_CONFIDENCE = 70
+
+# Profit threshold for automatic position closing (percentage), Positions with profit >= this value close immediately, bypassing other checks
+TP_THRESHOLD = 0.5
+
 # 🤖 SINGLE MODEL SETTINGS
 AI_MODEL_TYPE = 'gemini' 
 AI_MODEL_NAME = 'gemini-2.5-pro'  # Fast Gemini 2.5 model
@@ -704,7 +718,7 @@ FULL DATASET:
         # Use instance variables instead of global constants
         tf_mins = timeframe_minutes.get(self.timeframe, 30)
         # Minimum age: at least 60 minutes (1 hour) for proper position evolution
-        min_age_hours = max(0.08, tf_mins * self.days_back / 60)
+        min_age_hours = max(MIN_AGE_HOURS, tf_mins * self.days_back / 60)
 
         cprint(f"\n🔍 VALIDATING CLOSE DECISION FOR {symbol}:", "yellow", attrs=["bold"])
 
