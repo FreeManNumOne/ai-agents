@@ -45,6 +45,7 @@ import anthropic
 import os
 import pandas as pd
 import json
+import re  # Added for TextBlock parsing
 from termcolor import colored, cprint
 from dotenv import load_dotenv
 import openai
@@ -107,7 +108,12 @@ class RiskAgent(BaseAgent):
         
         self.override_active = False
         self.last_override_check = None
-        
+
+        # Get wallet address from environment for Solana operations
+        self.address = os.getenv("SOLANA_WALLET_ADDRESS") or os.getenv("ACCOUNT_ADDRESS")
+        if not self.address and EXCHANGE == 'solana':
+            cprint("⚠️ Warning: SOLANA_WALLET_ADDRESS not found - some functions may fail", "yellow")
+
         # Initialize start balance using portfolio value
         self.start_balance = self.get_portfolio_value()
         print(f"🏦 Initial Portfolio Balance: ${self.start_balance:.2f}")
@@ -239,7 +245,7 @@ class RiskAgent(BaseAgent):
                 return self.override_active
             
             # Get current positions first
-            positions = n.fetch_wallet_holdings_og(address)
+            positions = n.fetch_wallet_holdings_og(self.address)
             
             # Filter for tokens that are both in MONITORED_TOKENS and in our positions
             # Exclude USDC and SOL
@@ -377,9 +383,9 @@ class RiskAgent(BaseAgent):
         """Close all monitored positions except USDC and SOL"""
         try:
             cprint("\n🔄 Closing monitored positions...", "white", "on_cyan")
-            
+
             # Get all positions
-            positions = n.fetch_wallet_holdings_og(address)
+            positions = n.fetch_wallet_holdings_og(self.address)
             
             # Debug print to see what we're working with
             cprint("\n📊 Current positions:", "cyan")
@@ -461,7 +467,7 @@ class RiskAgent(BaseAgent):
                 return
                 
             # Get all current positions using fetch_wallet_holdings_og
-            positions_df = n.fetch_wallet_holdings_og(address)
+            positions_df = n.fetch_wallet_holdings_og(self.address)
             
             # Prepare breach context
             if breach_type == "MINIMUM_BALANCE":

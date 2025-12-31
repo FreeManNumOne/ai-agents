@@ -33,6 +33,7 @@ sys.path.insert(0, str(BASE_DIR))
 
 # Import shared logging utility (prevents circular imports)
 from src.utils.logging_utils import add_console_log, log_queue, log_position_open
+from src.utils.settings_manager import load_settings, save_settings, validate_settings
 
 # Load environment variables
 load_dotenv()
@@ -85,6 +86,7 @@ AGENT_STATE_FILE = DATA_DIR / "agent_state.json"
 # Agent control variables
 agent_thread = None
 agent_running = False  # Always start stopped - never auto-start
+agent_executing = False  # True when actively analyzing, False when waiting between cycles
 stop_agent_flag = False
 shutdown_in_progress = False
 stop_event = threading.Event()  # Event for clean shutdown signaling
@@ -103,6 +105,7 @@ SYMBOLS = [
     'AAVE',       # Aave
     'LINK',       # Chainlink
     'LTC',        # Litecoin
+    'HYPE',       # Hyperliquid Exchange Token
     'FARTCOIN',   # FartCoin
 ]
 
@@ -110,17 +113,60 @@ SYMBOLS = [
 # LOGGING UTILITIES
 # ============================================================================
 
+def rotate_log_files(log_dir, prefix, max_files=5, max_size_kb=300):
+    """Rotate log files, keeping only the most recent max_files with max size."""
+    import os
+
+    # Get all log files matching the pattern
+    log_files = sorted([f for f in log_dir.glob(f"{prefix}_*.log")],
+                      key=lambda x: x.stat().st_mtime, reverse=True)
+
+    # Remove old files if we exceed max_files
+    if len(log_files) >= max_files:
+        for old_file in log_files[max_files-1:]:
+            try:
+                old_file.unlink()
+            except Exception as e:
+                print(f"⚠️ Failed to remove old log file {old_file}: {e}")
+
+    # Check size of current log file
+    if log_files:
+        current_log = log_files[0]
+        size_kb = current_log.stat().st_size / 1024
+
+        if size_kb > max_size_kb:
+            # Create new log file with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            return log_dir / f"{prefix}_{timestamp}.log"
+
+    # Return current or new log file
+    if log_files and log_files[0].stat().st_size < max_size_kb * 1024:
+        return log_files[0]
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return log_dir / f"{prefix}_{timestamp}.log"
+
+
 def log_writer_worker():
-    """Background thread that batches log writes to avoid I/O bottleneck."""
+    """Background thread that batches log writes to avoid I/O bottleneck with rotating logs."""
     global log_writer_running
 
     log_buffer = []
     last_write_time = time.time()
     WRITE_INTERVAL = 2.0  # Write to disk every 2 seconds
 
-    # Persistent log directory
-    AGENT_DATA_DIR = DATA_DIR / "agent_data" / "logs"
-    AGENT_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # Local cache directory (in repo, not on server disk)
+    CACHE_DIR = BASE_DIR / ".cache" / "logs"
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Add to .gitignore
+    gitignore_file = BASE_DIR / ".gitignore"
+    if gitignore_file.exists():
+        with open(gitignore_file, 'r') as f:
+            content = f.read()
+        if '.cache/' not in content:
+            with open(gitignore_file, 'a') as f:
+                f.write('\n# Local cache directory\n.cache/\n')
 
     while log_writer_running:
         try:
@@ -155,11 +201,10 @@ def log_writer_worker():
                 with open(CONSOLE_FILE, 'w') as f:
                     json.dump(logs, f, indent=2)
 
-                # 2. Append to persistent daily log file (never truncated)
-                date_str = datetime.now().strftime("%Y-%m-%d")
-                daily_log_file = AGENT_DATA_DIR / f"app_{date_str}.log"
+                # 2. Append to rotating log files (max 5 files, 300KB each)
+                log_file = rotate_log_files(CACHE_DIR, "app", max_files=5, max_size_kb=300)
 
-                with open(daily_log_file, 'a') as f:
+                with open(log_file, 'a') as f:
                     for entry in log_buffer:
                         log_line = f"[{entry['timestamp']}] [{entry['level'].upper()}] {entry['message']}\n"
                         f.write(log_line)
@@ -188,11 +233,10 @@ def log_writer_worker():
             with open(CONSOLE_FILE, 'w') as f:
                 json.dump(logs, f, indent=2)
 
-            # Write to daily log file
-            date_str = datetime.now().strftime("%Y-%m-%d")
-            daily_log_file = AGENT_DATA_DIR / f"app_{date_str}.log"
+            # Write to rotating log file
+            log_file = rotate_log_files(CACHE_DIR, "app", max_files=5, max_size_kb=300)
 
-            with open(daily_log_file, 'a') as f:
+            with open(log_file, 'a') as f:
                 for entry in log_buffer:
                     log_line = f"[{entry['timestamp']}] [{entry['level'].upper()}] {entry['message']}\n"
                     f.write(log_line)
@@ -557,29 +601,33 @@ def save_agent_state(state):
 
 def run_trading_agent():
     """Run the trading agent in a loop with output capture"""
-    global agent_running, stop_agent_flag
+    global agent_running, agent_executing, stop_agent_flag
 
     add_console_log("AI Trading agent started", "success")
 
+    # Load user settings
+    user_settings = load_settings()
+    add_console_log(f"Loaded settings: {user_settings.get('timeframe')} timeframe, {user_settings.get('days_back')} days, {user_settings.get('sleep_minutes')} min cycle", "info")
+
     # Import trading agent at the top of the function
     try:
-        from src.agents.trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS, SLEEP_BETWEEN_RUNS_MINUTES
+        from src.agents.trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS
         trading_agent_module = "src.agents.trading_agent"
     except ImportError:
         try:
-            from trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS, SLEEP_BETWEEN_RUNS_MINUTES
+            from trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS
             trading_agent_module = "trading_agent"
         except ImportError:
             import sys
             sys.path.insert(0, str(BASE_DIR / "src" / "agents"))
-            from trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS, SLEEP_BETWEEN_RUNS_MINUTES
+            from trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS
             trading_agent_module = "trading_agent (sys.path)"
 
     add_console_log("Loaded trading_agent", "info")
     add_console_log(f"Using exchange {EXCHANGE}", "info")
 
-    # Convert minutes to seconds for sleep
-    sleep_seconds = SLEEP_BETWEEN_RUNS_MINUTES * 60
+    # Convert minutes to seconds for sleep (use user setting)
+    sleep_seconds = user_settings.get('sleep_minutes', 30) * 60
 
     while True:
         # Check stop condition with lock
@@ -593,8 +641,14 @@ def run_trading_agent():
             # Capture start time
             cycle_start = time.time()
 
-            # Create agent instance
-            agent = TradingAgent()
+            # Reload settings in case they changed
+            user_settings = load_settings()
+
+            # Create agent instance with user settings
+            agent = TradingAgent(
+                timeframe=user_settings.get('timeframe', '30m'),
+                days_back=user_settings.get('days_back', 2)
+            )
 
             # Get tokens list based on exchange
             if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
@@ -602,8 +656,16 @@ def run_trading_agent():
             else:
                 tokens = MONITORED_TOKENS
 
+            # Set executing flag to True (agent is now actively analyzing)
+            with state_lock:
+                agent_executing = True
+
             # Run the trading cycle
             agent.run_trading_cycle()
+
+            # Set executing flag back to False (analysis complete, entering wait phase)
+            with state_lock:
+                agent_executing = False
 
             # Calculate cycle duration
             cycle_duration = int(time.time() - cycle_start)
@@ -620,7 +682,7 @@ def run_trading_agent():
 
             # Wait before next cycle
             add_console_log("✅ Finished trading cycle", "info")
-            add_console_log(f"Next cycle starts in {SLEEP_BETWEEN_RUNS_MINUTES} minutes", "info")
+            add_console_log(f"Next cycle starts in {user_settings.get('sleep_minutes', 30)} minutes", "info")
 
             # Use Event.wait() instead of blocking sleep for responsive shutdown
             if stop_event.wait(timeout=sleep_seconds):
@@ -628,6 +690,10 @@ def run_trading_agent():
                 break
 
         except Exception as e:
+            # Reset executing flag on error
+            with state_lock:
+                agent_executing = False
+
             error_msg = f"Cycle error: {str(e)}"
             add_console_log(error_msg, "error")
             import traceback
@@ -642,6 +708,7 @@ def run_trading_agent():
     # Clean shutdown
     with state_lock:
         agent_running = False
+        agent_executing = False
     add_console_log("Agent stopped", "info")
 
 # ============================================================================
@@ -873,6 +940,7 @@ def get_agent_status():
         state = load_agent_state()
         status = {
             "agent_running": agent_running,
+            "executing": agent_executing,  # True when actively analyzing
             "stop_requested": stop_agent_flag,
             "last_started": state.get("last_started"),
             "last_stopped": state.get("last_stopped"),
@@ -891,19 +959,48 @@ def get_agent_status():
 @app.route('/api/settings', methods=['GET', 'POST'])
 @login_required
 def settings():
-    """Get or update settings"""
+    """Get or update user settings"""
     if request.method == 'GET':
-        # Return current settings
+        # Load and return current settings
+        user_settings = load_settings()
         return jsonify({
-            'exchange': EXCHANGE,
-            'symbols': SYMBOLS,
-            'ai_model': os.getenv('AI_MODEL', 'claude-3-haiku-20240307')
+            'success': True,
+            'settings': user_settings
         })
     else:
-        # Update settings (save to localStorage on frontend for now)
-        data = request.get_json()
-        add_console_log(f"Settings updated: Exchange={data.get('exchange')}, Model={data.get('ai_model')}", "info")
-        return jsonify({'success': True, 'message': 'Settings saved'})
+        # Update settings
+        try:
+            data = request.get_json()
+
+            # Validate settings
+            valid, errors = validate_settings(data)
+            if not valid:
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid settings',
+                    'errors': errors
+                }), 400
+
+            # Save settings
+            if save_settings(data):
+                add_console_log(f"Settings updated: Timeframe={data.get('timeframe')}, Days Back={data.get('days_back')}, Sleep={data.get('sleep_minutes')} min", "info")
+                return jsonify({
+                    'success': True,
+                    'message': 'Settings saved successfully',
+                    'settings': data
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': 'Failed to save settings'
+                }), 500
+
+        except Exception as e:
+            print(f"❌ Error updating settings: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Error: {str(e)}'
+            }), 500
 
 
 @app.route('/health')
