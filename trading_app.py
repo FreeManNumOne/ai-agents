@@ -630,6 +630,13 @@ def run_trading_agent():
     add_console_log(f"Mode: {mode_display} | Tokens: {', '.join(monitored_tokens)}", "info")
     add_console_log(f"AI Model: {user_settings.get('ai_provider')}/{user_settings.get('ai_model')}", "info")
 
+    # Log swarm models if in swarm mode
+    if swarm_mode == 'swarm':
+        swarm_models = user_settings.get('swarm_models', [])
+        add_console_log(f"Swarm Models: {len(swarm_models)} configured", "info")
+        for i, model in enumerate(swarm_models, 1):
+            add_console_log(f"  Model {i}: {model.get('provider')}/{model.get('model')}", "info")
+
     # Import trading agent at the top of the function
     try:
         from src.agents.trading_agent import TradingAgent, EXCHANGE
@@ -677,7 +684,10 @@ def run_trading_agent():
                 ai_provider=user_settings.get('ai_provider', 'gemini'),
                 ai_model=user_settings.get('ai_model', 'gemini-2.5-flash'),
                 ai_temperature=user_settings.get('ai_temperature', 0.3),
-                ai_max_tokens=user_settings.get('ai_max_tokens', 2000)
+                ai_max_tokens=user_settings.get('ai_max_tokens', 2000),
+                # Pass swarm mode settings
+                swarm_mode=user_settings.get('swarm_mode', 'single'),
+                swarm_models=user_settings.get('swarm_models', [])
             )
 
             # Set executing flag to True (agent is now actively analyzing)
