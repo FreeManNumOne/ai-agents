@@ -70,13 +70,13 @@ class StrategyAgent:
         if ENABLE_STRATEGIES:
             try:
                 # Import strategies directly
-                from src.strategies.custom.example_strategy import ExampleStrategy
-                from src.strategies.custom.private_my_strategy import MyStrategy
+                from src.strategies.custom.karma_compounding_agr import CompoundingAGRStrategy
+                from src.strategies.custom.quad_enhanced_strategy import 
                 
                 # Initialize strategies
                 self.enabled_strategies.extend([
-                    ExampleStrategy(),
-                    MyStrategy()
+                    CompoundingAGRStrategy(),
+                    QuadEnhancedStrategy()
                 ])
                 
                 print(f"✅ Loaded {len(self.enabled_strategies)} strategies!")
@@ -88,7 +88,7 @@ class StrategyAgent:
         else:
             print("🤖 Strategy Agent is disabled in config.py")
         
-        print(f"🤖 Moon Dev's Strategy Agent initialized with {len(self.enabled_strategies)} strategies!")
+        print(f"🤖 Strategy Agent initialized with {len(self.enabled_strategies)} strategies!")
 
     def evaluate_signals(self, signals, market_data):
         """Have LLM evaluate strategy signals"""
