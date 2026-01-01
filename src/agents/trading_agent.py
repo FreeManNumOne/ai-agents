@@ -218,8 +218,8 @@ MIN_CLOSE_CONFIDENCE = 70
 TP_THRESHOLD = 0.5
 
 # 🤖 SINGLE MODEL SETTINGS
-AI_MODEL_TYPE = 'ollamafreeapi' 
-AI_MODEL_NAME = 'deepseek-v3.1:671b' 
+AI_MODEL_TYPE = 'openai' 
+AI_MODEL_NAME = 'o4-mini' 
 AI_TEMPERATURE = 0.6   # Official recommended "sweet spot"
 AI_MAX_TOKENS = 8000   # Increased for multi-step reasoning
 
@@ -629,7 +629,7 @@ class TradingAgent:
             cprint("   💡 SELL signals can close longs OR open shorts", "white")
 
         cprint("\n🤖 LLM Trading Agent initialized!", "green")
-        add_console_log("🤖 LLM Trading Agent initialized!", "success")
+        add_console_log("AI Agent initialized!", "success")
 
     def _build_swarm_models_config(self):
         """
@@ -903,7 +903,7 @@ FULL DATASET:
             if result.decision == CloseDecision.FORCE_CLOSE:
                 cprint(f"   🚨 TIER {result.tier_triggered} ({tier_name}): FORCE CLOSE", "red", attrs=["bold"])
                 cprint(f"   💡 {result.reason}", "red")
-                add_console_log(f"🚨 STOP LOSS: Closing {symbol} at {pnl_percent:.2f}%", "warning")
+                add_console_log(f"STOP LOSS: Closing {symbol} at {pnl_percent:.2f}%", "warning")
                 return True, result.reason
 
             elif result.decision == CloseDecision.CLOSE:
@@ -944,7 +944,7 @@ FULL DATASET:
 
         cprint("\n" + "=" * 60, "yellow")
         cprint("🤖 AI ANALYZING OPEN POSITIONS", "white", "on_magenta", attrs=["bold"])
-        add_console_log("🤖 AI ANALYZING OPEN POSITIONS", "info")
+        add_console_log("Analyzing Open Positions", "info")
         cprint("=" * 60, "yellow")
 
         # Build position summary
@@ -985,8 +985,8 @@ FULL DATASET:
 
                     market_summary[symbol] = {
                         "current_price": current_price,
-                        "ma20": latest.get("MA20", 0),
-                        "ma40": latest.get("MA40", 0),
+                        "ma20": latest.get("MA18", 0),
+                        "ma40": latest.get("MA90", 0),
                         "rsi": latest.get("RSI", 0),
                         "trend": "Bullish" if current_price > latest.get("MA20", 0) else "Bearish",
                     }
@@ -1117,7 +1117,7 @@ Return ONLY valid JSON with the following structure:
 
                 # Short format for dashboard
                 if action.upper() == "CLOSE":
-                    add_console_log(f"{symbol} -> CLOSE ({confidence}%)", "warning")
+                    add_console_log(f"{symbol} -> CLOSE ({confidence}% Sure)", "warning")
                 else:
                     add_console_log(f"{symbol} -> KEEP", "info")
 
@@ -1253,7 +1253,7 @@ Return ONLY valid JSON with the following structure:
                 cprint(f"✅ Swarm analysis complete for {token[:8]}!", "green")
 
                 # Short format for dashboard: "TOKEN -> ACTION | CONFIDENCE%"
-                add_console_log(f"{token} -> {action} | {confidence}%", "info")
+                add_console_log(f"✅ Swarm  {token} -> {action} | {confidence}% Sure", "success")
 
                 return swarm_result
 
