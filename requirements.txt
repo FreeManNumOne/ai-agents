@@ -83,7 +83,8 @@ numba==0.61.2
 
 # Data Analysis
 pandas==2.3.3
-# pandas-ta==0.4.71b0  # Removed: requires Python 3.12+, using TA-Lib-Precompiled instead
+pandas-ta==0.4.71b0  
+# Removed: requires Python 3.12+, using TA-Lib-Precompiled instead
 
 # Parsing & Processing
 parsimonious==0.10.0
