@@ -218,10 +218,10 @@ MIN_CLOSE_CONFIDENCE = 70
 TP_THRESHOLD = 0.5
 
 # 🤖 SINGLE MODEL SETTINGS
-AI_MODEL_TYPE = 'gemini' 
-AI_MODEL_NAME = 'gemini-2.5-flash-lite'  # Fastes Free Gemini Model
-AI_TEMPERATURE = 0.3   
-AI_MAX_TOKENS = 3000   
+AI_MODEL_TYPE = 'ollamafreeapi' 
+AI_MODEL_NAME = 'deepseek-v3.1:671b'  
+AI_TEMPERATURE = 0.6   # Official recommended "sweet spot"
+AI_MAX_TOKENS = 8000   # Increased for multi-step reasoning
 
 # 💰 POSITION SIZING & RISK MANAGEMENT
 USE_PORTFOLIO_ALLOCATION = True 
