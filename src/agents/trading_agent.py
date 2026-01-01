@@ -219,7 +219,7 @@ TP_THRESHOLD = 0.5
 
 # 🤖 SINGLE MODEL SETTINGS
 AI_MODEL_TYPE = 'ollamafreeapi' 
-AI_MODEL_NAME = 'deepseek-v3.1:671b'  
+AI_MODEL_NAME = 'deepseek-v3.1:671b' 
 AI_TEMPERATURE = 0.6   # Official recommended "sweet spot"
 AI_MAX_TOKENS = 8000   # Increased for multi-step reasoning
 
