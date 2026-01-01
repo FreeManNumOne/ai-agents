@@ -59,31 +59,23 @@ from src.models.model_factory import model_factory
 # ============================================
 
 # Configure which models to use in the swarm (set to True to enable)
-# IMPORTANT: Each model MUST have a unique key - duplicate keys will be silently overwritten!
-# Use format: "provider_N" (e.g., "gemini_1", "gemini_2", "ollama_1", "ollama_2")
+# Maximum 6 models allowed for swarm functionality
+# Keys are named swarm_model_1 through swarm_model_6 for simplicity
 SWARM_MODELS = {
-    # 🌙 Moon Dev's Active Swarm Models - 4 Model Default Configuration
-    # Each key must be unique to ensure all models are loaded!
-    "gemini_1": (True, "gemini", "gemini-2.0-flash"),   # Gemini 2.0 Flash - Fast multimodal model
-    "gemini_2": (True, "gemini", "gemini-2.5-pro"),     # Gemini 2.5 Pro - Powerful, stable ($2.50/$10.00 per 1M tokens)
-    "ollama_1": (True, "ollama", "deepseek-chat"),      # DeepSeek Chat via Ollama - Local reasoning
-    "ollama_2": (True, "ollama", "qwen/qwen3:8b"),      # Qwen3 8B via Ollama - Fast local reasoning!
+    # 🌙 Moon Dev's Default Swarm Models - FREE TIER OPTIMIZED
+    # These defaults use free models to minimize costs while maintaining quality
+    "swarm_model_1": (True, "gemini", "gemini-2.0-flash"),       # Gemini 2.0 Flash - FREE (generous quota)
+    "swarm_model_2": (True, "gemini", "gemini-2.5-flash"),       # Gemini 2.5 Flash - FREE (fast & capable)
+    "swarm_model_3": (True, "ollamafreeapi", "deepseek-v3.2"),   # DeepSeek V3.2 - FREE via OllamaFreeAPI
+    "swarm_model_4": (True, "ollamafreeapi", "qwen/qwen3:8b"),   # Qwen3 8B - FREE via OllamaFreeAPI
 
-    # 🔇 Disabled Models (uncomment to enable - use unique keys!)
-    #"gemini_3": (True, "gemini", "gemini-3-pro"),      # Gemini 3 Pro - Most advanced Gemini model (latest flagship)
-    #"claude_1": (True, "claude", "claude-sonnet-4-5"), # Claude 4.5 Sonnet - Latest & Greatest!
-    #"claude_2": (True, "claude", "claude-opus-4-5-20251101"),  # Claude Opus 4.5 - Most powerful!
-    #"openai_1": (True, "openai", "gpt-5"),             # GPT-5 - Most advanced model!
-    #"openrouter_qwen": (True, "openrouter", "qwen/qwen3-max"),  # Qwen 3 Max - Powerful reasoning ($1.00/$1.00 per 1M tokens)
-    #"openrouter_gemini": (True, "openrouter", "google/gemini-2.5-flash"),  # Gemini 2.5 Flash - Fast & cheap! ($0.10/$0.40 per 1M tokens)
-    #"openrouter_glm": (True, "openrouter", "z-ai/glm-4.6"),  # GLM 4.6 - Zhipu AI reasoning ($0.50/$0.50 per 1M tokens)
-    #"openrouter_deepseek_r1": (True, "openrouter", "deepseek/deepseek-r1-0528"),  # DeepSeek R1 - Advanced reasoning ($0.55/$2.19 per 1M tokens)
-    #"openrouter_claude_opus": (True, "openrouter", "anthropic/claude-opus-4.1"),  # Claude Opus 4.1 via OpenRouter
-    #"openrouter_gpt5_mini": (True, "openrouter", "openai/gpt-5-mini"),  # GPT-5 Mini via OpenRouter
+    # 🔇 Additional slots (uncomment to enable - max 6 total)
+    #"swarm_model_5": (True, "groq", "llama-3.3-70b-versatile"), # Groq LLaMA 3.3 - FREE (fast inference)
+    #"swarm_model_6": (True, "groq", "gemma2-9b-it"),            # Groq Gemma2 - FREE (fast inference)
 
-    # 💡 See all 200+ models at: https://openrouter.ai/docs
-    # 💡 Any model from openrouter_model.py can be used here!
-    # ⚠️ Remember: Each key must be unique (e.g., "ollama_1", "ollama_2", NOT "ollama", "ollama")
+    # 💰 Premium alternatives (require API keys with paid plans)
+    #"swarm_model_5": (True, "claude", "claude-sonnet-4-5"),     # Claude 4.5 Sonnet - Paid
+    #"swarm_model_6": (True, "openai", "gpt-4o"),                # GPT-4o - Paid
 }
 
 # Default parameters for model queries

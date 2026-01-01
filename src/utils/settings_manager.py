@@ -106,10 +106,13 @@ DEFAULT_SETTINGS = {
     # "ai_model": "deepseek-v3.2",   # Or "deepseek-v3.2:671b-q4_K_M"
     # "ai_max_tokens": 8192,         # Optimized for V3.2
 
-    # Swarm AI Model settings (for multi-agent mode)
+    # Swarm AI Model settings (for multi-agent mode) - MAX 6 MODELS
+    # Defaults use FREE models to minimize costs
     "swarm_models": [
-        # DeepSeek for trading analysis
-        {"provider": "ollamafreeapi", "model": "deepseek-v3.1:671b", "temperature": 0.6, "max_tokens": 8000},
+        {"provider": "gemini", "model": "gemini-2.0-flash", "temperature": 0.5, "max_tokens": 2048},
+        {"provider": "gemini", "model": "gemini-2.5-flash", "temperature": 0.5, "max_tokens": 2048},
+        {"provider": "ollamafreeapi", "model": "deepseek-v3.2", "temperature": 0.5, "max_tokens": 2048},
+        {"provider": "ollamafreeapi", "model": "qwen/qwen3:8b", "temperature": 0.5, "max_tokens": 2048},
     ],
 
     # Timestamp
