@@ -1354,6 +1354,8 @@ Return ONLY valid JSON with the following structure:
 
                     if strat_obj:
                         strategy_context_text, strategy_context_json = self._format_strategy_context_text(strat_obj)
+                        add_console_log("Strategies loaded", "success")
+
                     else:
                         # fallback to legacy market_data['strategy_signals'] if present
                         if isinstance(market_data, dict) and "strategy_signals" in market_data:
