@@ -184,5 +184,5 @@ websockets==15.0
 # ============================================================================
 flask==3.0.0
 werkzeug==3.0.0
-flask_cors
-TA-Lib-Precompiled
+flask-cors
+TA-Lib-Precompiled==0.4.25
