@@ -1401,13 +1401,20 @@ let currentTierData = null;
 async function loadTierInfo() {
     try {
         const response = await fetch('/api/tier');
+
+        // Handle authentication redirect
+        if (response.status === 401) {
+            console.log('User not authenticated, skipping tier info load');
+            return;
+        }
+
         const data = await response.json();
 
         if (data.success) {
             currentTierData = data;
             renderTierUI(data);
         } else {
-            console.error('Failed to load tier info:', data.error);
+            console.error('Failed to load tier info:', data.error || data.message);
         }
     } catch (error) {
         console.error('Error loading tier info:', error);
@@ -1522,17 +1529,27 @@ function showTierUpgradeModal(tier) {
 function applyTierLimits(features, tier) {
     // Apply visual locks to UI elements based on tier
 
-    // Swarm mode toggle
-    const swarmToggle = document.getElementById('swarm-mode-toggle');
-    const swarmContainer = swarmToggle?.closest('.setting-item');
-    if (swarmContainer) {
-        if (!features.swarm_mode) {
-            swarmContainer.classList.add('feature-locked');
-            if (swarmToggle) swarmToggle.disabled = true;
+    // Swarm mode radio buttons (name="swarm-mode")
+    const swarmRadios = document.querySelectorAll('input[name="swarm-mode"]');
+    const swarmSection = document.getElementById('swarm-models-section');
+
+    swarmRadios.forEach(radio => {
+        const container = radio.closest('.mode-option');
+        if (radio.value === 'swarm' && !features.swarm_mode) {
+            // Lock swarm option
+            radio.disabled = true;
+            if (container) container.classList.add('feature-locked');
         } else {
-            swarmContainer.classList.remove('feature-locked');
-            if (swarmToggle) swarmToggle.disabled = false;
+            radio.disabled = false;
+            if (container) container.classList.remove('feature-locked');
         }
+    });
+
+    // Also lock swarm models section if not allowed
+    if (swarmSection && !features.swarm_mode) {
+        swarmSection.classList.add('feature-locked');
+    } else if (swarmSection) {
+        swarmSection.classList.remove('feature-locked');
     }
 
     // BYOK section - only lock for 'based' tier
@@ -1560,26 +1577,28 @@ function applyTierLimits(features, tier) {
 }
 
 function updateTokenLimitIndicator(maxTokens) {
-    const tokensInput = document.getElementById('monitored-tokens');
-    if (!tokensInput) return;
-
     // Remove existing badge
     const existingBadge = document.querySelector('.token-limit-badge');
     if (existingBadge) existingBadge.remove();
+
+    // Find the Token Selection section title
+    const tokenTab = document.getElementById('tab-token');
+    if (!tokenTab) return;
+
+    const sectionTitle = tokenTab.querySelector('.section-title');
+    if (!sectionTitle) return;
 
     // Add limit badge if not unlimited
     if (maxTokens < 999) {
         const badge = document.createElement('span');
         badge.className = 'token-limit-badge';
         badge.innerHTML = `Max: ${maxTokens} tokens`;
-
-        const label = tokensInput.previousElementSibling;
-        if (label) label.appendChild(badge);
+        sectionTitle.appendChild(badge);
     }
 }
 
 function updateProviderRestrictions(allowedProviders, tier) {
-    const providerSelect = document.getElementById('ai-provider');
+    const providerSelect = document.getElementById('main-provider-select');
     if (!providerSelect) return;
 
     // For 'based' tier, disable non-free providers
@@ -1588,7 +1607,9 @@ function updateProviderRestrictions(allowedProviders, tier) {
             const provider = option.value;
             if (!allowedProviders.includes(provider)) {
                 option.disabled = true;
-                option.textContent = option.textContent.replace(' (BYOK Required)', '') + ' (BYOK Required)';
+                if (!option.textContent.includes('(BYOK Required)')) {
+                    option.textContent = option.textContent + ' (BYOK Required)';
+                }
             } else {
                 option.disabled = false;
                 option.textContent = option.textContent.replace(' (BYOK Required)', '');

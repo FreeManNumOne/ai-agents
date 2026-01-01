@@ -2007,6 +2007,33 @@ textarea.setting-input {
     background: var(--accent-blue);
 }
 
+/* Mode option locked state */
+.mode-option.feature-locked {
+    cursor: not-allowed;
+}
+
+.mode-option.feature-locked .mode-card {
+    border-color: var(--border-color);
+    background: var(--bg-tertiary);
+}
+
+.mode-option.feature-locked::after {
+    top: 12px;
+    right: 12px;
+    transform: none;
+}
+
+/* Swarm section locked */
+.swarm-models-section.feature-locked {
+    opacity: 0.4;
+}
+
+.swarm-models-section.feature-locked::after {
+    content: "PRO FEATURE";
+    top: 20px;
+    right: 20px;
+}
+
 /* Token limit badge */
 .token-limit-badge {
     display: inline-flex;
