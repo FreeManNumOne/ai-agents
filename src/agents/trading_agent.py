@@ -1865,131 +1865,147 @@ Return ONLY valid JSON with the following structure:
                 add_console_log(f"🎯 Processing {direction} {token} allocation: ${amount:.2f}", "info")
 
                 try:
-                    if EXCHANGE == "HYPERLIQUID":
-                        current_position = n.get_token_balance_usd(token, self.account)
+                    # Get position WITH direction info (not just USD value)
+                    try:
+                        if EXCHANGE == "HYPERLIQUID":
+                            pos_data = n.get_position(token, self.account)
+                        else:
+                            pos_data = n.get_position(token)
 
-                    else:
-                        current_position = n.get_token_balance_usd(token)
- 
+                        _, im_in_pos, pos_size, _, entry_px, pnl_perc, current_is_long = pos_data
+                        current_position = abs(float(pos_size) * float(entry_px)) if im_in_pos else 0
+                    except Exception:
+                        im_in_pos = False
+                        current_is_long = True
+                        current_position = 0
+                        pos_size = 0
 
                     target_allocation = amount
-
-                    print(f"🎯 Target margin allocation: ${target_allocation:.2f} USD ({direction})")
-                    print(f"📊 Current notional position: ${current_position:.2f} USD")
+                    target_is_long = (direction == "LONG")
 
                     # Calculate effective trade size with leverage
                     if EXCHANGE in ["HYPERLIQUID", "ASTER"]:
                         effective_value = float(target_allocation) * LEVERAGE
-                        print(f"⚡ Target notional (with {LEVERAGE}x): ${effective_value:.2f} (margin: ${target_allocation:.2f})")
-                        add_console_log(f"⚡ {token} target: ${effective_value:.2f} notional | ${target_allocation:.2f} margin", "info")
                     else:
                         effective_value = float(target_allocation)
-                        print(f"💰 Trade size: ${effective_value:.2f}")
- 
-                    # Compare current notional position against target notional position
-                    if current_position < (effective_value * 0.97):  # 97% threshold to avoid small adjustments
-                        print(f"✨ Executing {direction} entry for {token}")
-                        add_console_log(f"✨ Opening {direction} {token} position", "info")
 
-                        if direction == "LONG":
-                            # ============= LONG POSITION (BUY) =============
-                            if EXCHANGE == "HYPERLIQUID":
-                                cprint(f"🔵 HyperLiquid: ai_entry({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "cyan")
-                                add_console_log(f"🔵 Executing LONG: ai_entry({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
-                                n.ai_entry(token, effective_value, leverage=LEVERAGE, account=self.account)
-                            elif EXCHANGE == "ASTER":
-                                cprint(f"🟣 Aster: ai_entry({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "cyan")
-                                add_console_log(f"🟣 Executing LONG: ai_entry({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
-                                n.ai_entry(token, effective_value, leverage=LEVERAGE)
-                            else:
-                                cprint(f"🟢 Solana: ai_entry({token}, ${effective_value:.2f})", "cyan")
-                                add_console_log(f"🟢 Executing LONG: ai_entry({token}, ${effective_value:.2f})", "info")
-                                n.ai_entry(token, effective_value)
+                    print(f"🎯 Target: {direction} ${effective_value:.2f} notional (${target_allocation:.2f} margin)")
 
-                            print(f"✅ LONG entry complete for {token}")
-                            add_console_log(f"✅ {token} LONG position opened successfully", "success")
+                    # Check if we have an existing position
+                    if im_in_pos and pos_size != 0:
+                        current_dir = "LONG" if current_is_long else "SHORT"
+                        print(f"📊 Current: {current_dir} ~${current_position:.2f} notional")
 
-                            # Log position open
-                            try:
-                                log_position_open(token, "LONG", effective_value)
-                            except Exception:
-                                pass
-
-                        elif direction == "SHORT":
-                            # ============= SHORT POSITION (SELL) =============
-                            if EXCHANGE == "HYPERLIQUID":
-                                cprint(f"🔴 HyperLiquid: open_short({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "red")
-                                add_console_log(f"🔴 Executing SHORT: open_short({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
-                                n.open_short(token, effective_value, leverage=LEVERAGE, account=self.account)
-                            elif EXCHANGE == "ASTER":
-                                cprint(f"🟣 Aster: open_short({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "red")
-                                add_console_log(f"🟣 Executing SHORT: open_short({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
-                                # Aster may use different function - fallback to ai_entry with sell flag if available
-                                if hasattr(n, 'open_short'):
-                                    n.open_short(token, effective_value, leverage=LEVERAGE)
-                                else:
-                                    cprint(f"⚠️ open_short not available for ASTER, skipping", "yellow")
-                                    continue
-                            else:
-                                cprint(f"⚠️ SHORT positions not supported on SOLANA exchange", "yellow")
-                                add_console_log(f"⚠️ SHORT not supported on SOLANA", "warning")
+                        # Check if existing position is in SAME or OPPOSITE direction
+                        if current_is_long == target_is_long:
+                            # SAME direction - check if we need to add more
+                            if current_position >= (effective_value * 0.97):
+                                print(f"⏸️ Already have {current_dir} position at target size - skipping")
+                                add_console_log(f"⏸️ {token} {current_dir} already at target", "info")
                                 continue
+                            else:
+                                print(f"📈 Adding to existing {current_dir} position")
+                                # Fall through to open logic
+                        else:
+                            # OPPOSITE direction - this shouldn't happen (handle_exits should have closed it)
+                            cprint(f"⚠️ WARNING: Found {current_dir} position but want to open {direction}", "yellow")
+                            cprint(f"   This position should have been closed in handle_exits()", "yellow")
+                            cprint(f"   Closing it now before opening {direction}...", "yellow")
 
-                            print(f"✅ SHORT entry complete for {token}")
-                            add_console_log(f"✅ {token} SHORT position opened successfully", "success")
-
-                            # Log position open
                             try:
-                                log_position_open(token, "SHORT", effective_value)
+                                if EXCHANGE == "HYPERLIQUID":
+                                    n.close_complete_position(token, self.account)
+                                else:
+                                    n.chunk_kill(token, max_usd_order_size, slippage)
+
+                                if POSITION_TRACKER_AVAILABLE:
+                                    remove_position(token)
+
+                                cprint(f"✅ Closed {current_dir} position", "green")
+                                time.sleep(1)  # Wait for exchange to process
+                            except Exception as e:
+                                cprint(f"❌ Failed to close opposite position: {e}", "red")
+                                continue
+                    else:
+                        print(f"📊 No existing position")
+
+                    # Open new position
+                    print(f"✨ Executing {direction} entry for {token}")
+                    add_console_log(f"✨ Opening {direction} {token} position", "info")
+
+                    if direction == "LONG":
+                        # ============= LONG POSITION (BUY) =============
+                        if EXCHANGE == "HYPERLIQUID":
+                            cprint(f"🔵 HyperLiquid: ai_entry({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "cyan")
+                            add_console_log(f"🔵 Executing LONG: ai_entry({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
+                            n.ai_entry(token, effective_value, leverage=LEVERAGE, account=self.account)
+                        elif EXCHANGE == "ASTER":
+                            cprint(f"🟣 Aster: ai_entry({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "cyan")
+                            add_console_log(f"🟣 Executing LONG: ai_entry({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
+                            n.ai_entry(token, effective_value, leverage=LEVERAGE)
+                        else:
+                            cprint(f"🟢 Solana: ai_entry({token}, ${effective_value:.2f})", "cyan")
+                            add_console_log(f"🟢 Executing LONG: ai_entry({token}, ${effective_value:.2f})", "info")
+                            n.ai_entry(token, effective_value)
+
+                        print(f"✅ LONG entry complete for {token}")
+                        add_console_log(f"✅ {token} LONG position opened successfully", "success")
+
+                        # Log position open
+                        try:
+                            log_position_open(token, "LONG", effective_value)
+                        except Exception:
+                            pass
+
+                    elif direction == "SHORT":
+                        # ============= SHORT POSITION (SELL) =============
+                        if EXCHANGE == "HYPERLIQUID":
+                            cprint(f"🔴 HyperLiquid: open_short({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "red")
+                            add_console_log(f"🔴 Executing SHORT: open_short({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
+                            n.open_short(token, effective_value, leverage=LEVERAGE, account=self.account)
+                        elif EXCHANGE == "ASTER":
+                            cprint(f"🟣 Aster: open_short({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "red")
+                            add_console_log(f"🟣 Executing SHORT: open_short({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
+                            # Aster may use different function - fallback to ai_entry with sell flag if available
+                            if hasattr(n, 'open_short'):
+                                n.open_short(token, effective_value, leverage=LEVERAGE)
+                            else:
+                                cprint(f"⚠️ open_short not available for ASTER, skipping", "yellow")
+                                continue
+                        else:
+                            cprint(f"⚠️ SHORT positions not supported on SOLANA exchange", "yellow")
+                            add_console_log(f"⚠️ SHORT not supported on SOLANA", "warning")
+                            continue
+
+                        print(f"✅ SHORT entry complete for {token}")
+                        add_console_log(f"✅ {token} SHORT position opened successfully", "success")
+
+                        # Log position open
+                        try:
+                            log_position_open(token, "SHORT", effective_value)
+                        except Exception:
+                            pass
+
+                    # Record position entry in tracker for age-based decisions
+                    if POSITION_TRACKER_AVAILABLE:
+                        try:
+                            entry_price = 0.0
+                            try:
+                                raw_pos = n.get_position(token, self.account) if EXCHANGE == "HYPERLIQUID" else n.get_position(token)
+                                if raw_pos and len(raw_pos) > 4:
+                                    entry_price = raw_pos[4]
                             except Exception:
                                 pass
 
-                        # Record position entry in tracker for age-based decisions
-                        if POSITION_TRACKER_AVAILABLE:
-                            try:
-                                entry_price = 0.0
-                                try:
-                                    raw_pos = n.get_position(token, self.account) if EXCHANGE == "HYPERLIQUID" else n.get_position(token)
-                                    if raw_pos and len(raw_pos) > 4:
-                                        entry_price = raw_pos[4]
-                                except Exception:
-                                    pass
- 
-                                record_position_entry(
-                                    symbol=token,
-                                    entry_price=entry_price,
-                                    size=effective_value,
-                                    is_long=(direction == "LONG")
-                                )
-                                cprint(f"   📝 Recorded {token} {direction} in position tracker", "cyan")
-                            except Exception as e:
-                                cprint(f"   ⚠️ Failed to record position: {e}", "yellow")
-
-                    elif current_position > (effective_value * 1.03):  # 103% threshold
-                        # Need to REDUCE position
-                        if target_allocation == 0:
-                            print(f"📉 Closing complete position for {token}")
-                            add_console_log(f"📉 Closing complete {token} position", "info")
- 
-                            if EXCHANGE == "HYPERLIQUID":
-                                n.close_complete_position(token, self.account)
-                            else:
-                                n.chunk_kill(token, max_usd_order_size, slippage)
-
-                            if POSITION_TRACKER_AVAILABLE:
-                                remove_position(token)
-                                cprint(f"   📝 Removed {token} from position tracker", "cyan")
- 
-                            print(f"✅ Position closed for {token}")
-                                  
-                        else:
-                            cprint(f"⏭️  Skipping partial reduction for {token}", "yellow")
-                            cprint(f"   Current: ${current_position:.2f}, Target: ${target_allocation:.2f}", "white")
-                            cprint(f"   💡 Position management is binary: KEEP or CLOSE only", "cyan")
-                            add_console_log(f"⏭️  {token} - Skipping partial reduction", "info")
-                    else:
-                        print(f"⏸️ Position already at target size for {token}")
-                        add_console_log(f"⏸️ {token} already at target - no action", "info")
+                            record_position_entry(
+                                symbol=token,
+                                entry_price=entry_price,
+                                size=effective_value,
+                                is_long=(direction == "LONG")
+                            )
+                            cprint(f"   📝 Recorded {token} {direction} in position tracker", "cyan")
+                        except Exception as e:
+                            cprint(f"   ⚠️ Failed to record position: {e}", "yellow")
 
                 except Exception as e:
                     error_msg = f"❌ Error executing {direction} entry for {token}: {str(e)}"
@@ -2000,12 +2016,24 @@ Return ONLY valid JSON with the following structure:
 
                 time.sleep(2)
 
+        except Exception as e:
+            cprint(f"❌ Error in execute_allocations: {e}", "red")
+            import traceback
+            traceback.print_exc()
+
     def handle_exits(self):
         """
-        PHASE 1: CLOSE existing positions based on SELL recommendations.
+        PHASE 1: CLOSE positions when signal is OPPOSITE to position direction.
 
         This function ONLY handles EXITS - it does NOT open new positions.
         New positions are opened in execute_allocations() after balance is recalculated.
+
+        Logic:
+        - BUY signal + LONG position → KEEP (signal confirms position)
+        - BUY signal + SHORT position → CLOSE (signal contradicts position)
+        - SELL signal + LONG position → CLOSE (signal contradicts position)
+        - SELL signal + SHORT position → KEEP (signal confirms position)
+        - NOTHING signal → KEEP any position
 
         Order of Operations (per dev_tasks.md 3.1):
         1. CLOSE existing positions (this function)
@@ -2013,7 +2041,7 @@ Return ONLY valid JSON with the following structure:
         3. OPEN new positions (execute_allocations)
         """
         cprint("\n🔄 PHASE 1: Checking for positions to exit...", "white", "on_blue")
-        add_console_log("🔄 Phase 1: Closing positions...", "info")
+        add_console_log("🔄 Phase 1: Evaluating positions...", "info")
 
         positions_closed = 0
         positions_held = 0
@@ -2027,62 +2055,91 @@ Return ONLY valid JSON with the following structure:
 
             action = row["action"]
 
-            if EXCHANGE == "HYPERLIQUID":
-                current_position = n.get_token_balance_usd(token, self.account)
-            else:
-                current_position = n.get_token_balance_usd(token)
+            # Get position with direction info
+            try:
+                if EXCHANGE == "HYPERLIQUID":
+                    pos_data = n.get_position(token, self.account)
+                else:
+                    pos_data = n.get_position(token)
+
+                _, im_in_pos, pos_size, _, entry_px, pnl_perc, is_long = pos_data
+            except Exception as e:
+                cprint(f"⚠️ Error getting position for {token}: {e}", "yellow")
+                continue
 
             cprint(f"\n{'=' * 60}", "cyan")
             cprint(f"🎯 Token: {token_short}", "cyan", attrs=["bold"])
             cprint(f"📊 Signal: {action} ({row['confidence']}% confidence)", "yellow", attrs=["bold"])
-            cprint(f"💼 Current Position: ${current_position:.2f}", "white")
-            cprint(f"{'=' * 60}", "cyan")
 
-            if current_position > 0:
+            if im_in_pos and pos_size != 0:
                 # ============= CASE: HAVE POSITION =============
-                if action == "SELL":
-                    cprint("🚨 SELL signal with position - CLOSING POSITION", "white", "on_red")
+                position_dir = "LONG 🟢" if is_long else "SHORT 🔴"
+                cprint(f"💼 Current Position: {position_dir} | Size: {abs(pos_size):.4f} | PnL: {pnl_perc:.2f}%", "white")
+                cprint(f"{'=' * 60}", "cyan")
+
+                # Determine if signal contradicts position direction
+                signal_contradicts_position = (
+                    (action == "SELL" and is_long) or      # SELL signal vs LONG position
+                    (action == "BUY" and not is_long)      # BUY signal vs SHORT position
+                )
+
+                if action == "NOTHING":
+                    # NOTHING = hold current position regardless of direction
+                    cprint("⏸️ DO NOTHING signal - HOLDING POSITION", "white", "on_blue")
+                    cprint(f"💎 Maintaining {position_dir} position", "cyan")
+                    positions_held += 1
+
+                elif signal_contradicts_position:
+                    # Signal contradicts position → CLOSE
+                    if action == "SELL" and is_long:
+                        cprint("🚨 SELL signal vs LONG position - CLOSING", "white", "on_red")
+                    else:  # BUY signal vs SHORT position
+                        cprint("🚨 BUY signal vs SHORT position - CLOSING", "white", "on_red")
+
                     try:
                         if EXCHANGE == "HYPERLIQUID":
                             n.close_complete_position(token, self.account)
                         else:
                             n.chunk_kill(token, max_usd_order_size, slippage)
+
+                        # Remove from position tracker
+                        if POSITION_TRACKER_AVAILABLE:
+                            remove_position(token)
+
                         cprint("✅ Position closed successfully!", "white", "on_green")
-                        add_console_log(f"Closed {token} position due to SELL signal", "warning")
+                        add_console_log(f"Closed {token} {position_dir} - signal contradicted direction", "warning")
                         positions_closed += 1
 
                     except Exception as e:
                         cprint(f"❌ Error closing position: {str(e)}", "white", "on_red")
 
-                elif action == "NOTHING":
-                    cprint("⏸️ DO NOTHING signal - HOLDING POSITION", "white", "on_blue")
-                    cprint(f"💎 Maintaining ${current_position:.2f} position", "cyan")
-                    positions_held += 1
-
                 else:
-                    cprint("✅ BUY signal - KEEPING POSITION", "white", "on_green")
-                    cprint(f"💎 Maintaining ${current_position:.2f} position", "cyan")
+                    # Signal confirms position direction → KEEP
+                    if action == "BUY" and is_long:
+                        cprint("✅ BUY signal confirms LONG position - KEEPING", "white", "on_green")
+                    else:  # SELL signal confirms SHORT position
+                        cprint("✅ SELL signal confirms SHORT position - KEEPING", "white", "on_green")
+
+                    cprint(f"💎 Maintaining {position_dir} position", "cyan")
                     positions_held += 1
 
             else:
                 # ============= CASE: NO POSITION =============
+                cprint(f"💼 No position", "white")
+                cprint(f"{'=' * 60}", "cyan")
+
                 # Do NOT open new positions here - that happens in execute_allocations()
                 if action == "SELL":
                     if LONG_ONLY:
-                        cprint("⭐ SELL signal but NO POSITION to close", "white", "on_blue")
-                        cprint("📊 LONG ONLY mode: Can't open short", "cyan")
+                        cprint("⭐ SELL signal - LONG ONLY mode, can't open SHORT", "white", "on_blue")
                     else:
-                        cprint("📉 SELL signal with no position - SHORT will be opened in allocation phase", "white", "on_yellow")
-                        cprint("📊 Deferring to portfolio allocation for proper sizing", "cyan")
+                        cprint("📉 SELL signal - SHORT will be opened in allocation phase", "white", "on_yellow")
 
                 elif action == "NOTHING":
-                    cprint("⏸️ DO NOTHING signal with no position", "white", "on_blue")
-                    cprint("⭐ Staying out of market", "cyan")
+                    cprint("⏸️ DO NOTHING signal - staying flat", "white", "on_blue")
 
-                else:
-                    # BUY signal with no position - defer to allocation phase
-                    cprint("📈 BUY signal with no position - will be opened in allocation phase", "white", "on_green")
-                    cprint("📊 Deferring to portfolio allocation for proper sizing", "cyan")
+                else:  # BUY
+                    cprint("📈 BUY signal - LONG will be opened in allocation phase", "white", "on_green")
 
         # Summary
         cprint(f"\n{'=' * 60}", "green")
