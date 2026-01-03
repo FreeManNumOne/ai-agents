@@ -434,7 +434,7 @@ html, body {
 
 .position-label,
 .trade-label {
-    font-size: 10px;
+    font-size: 6px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--text-muted);
@@ -443,7 +443,7 @@ html, body {
 
 .position-value,
 .trade-value {
-    font-size: 13px;
+    font-size: 9px;
     font-variant-numeric: tabular-nums;
     color: var(--text-primary);
     font-weight: 500;
@@ -484,9 +484,9 @@ html, body {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 11px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 9px;
     font-weight: 600;
     font-family: var(--font-primary);
     cursor: pointer;
@@ -519,8 +519,8 @@ html, body {
 
 /* Positions Footer with Close All Button */
 .positions-footer {
-    padding-top: 12px;
-    margin-top: 12px;
+    padding-top: 9px;
+    margin-top: 9px;
     border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: flex-end;
