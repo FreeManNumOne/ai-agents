@@ -3,7 +3,7 @@
 
 DUAL-MODE AI TRADING SYSTEM:
 
-🤖 SINGLE MODEL MODE (Fast - ~10 seconds per token):
+SINGLE MODEL MODE (Fast - ~10 seconds per token):
    - Uses one AI model for quick trading decisions
    - Best for: Fast execution, high-frequency strategies
    - Configure model in config.py: AI_MODEL_TYPE and AI_MODEL_NAME
@@ -224,7 +224,7 @@ MIN_CLOSE_CONFIDENCE = 70
 # Profit threshold for automatic position closing (percentage), Positions with profit >= this value close immediately, bypassing other checks
 TP_THRESHOLD = 0.5
 
-# 🤖 SINGLE MODEL SETTINGS
+# SINGLE MODEL SETTINGS
 AI_MODEL_TYPE = 'openai' 
 AI_MODEL_NAME = 'o4-mini' 
 AI_TEMPERATURE = 0.6   # Official recommended "sweet spot"
@@ -602,7 +602,7 @@ class TradingAgent:
             if self.model:
                 cprint(f"✅ Allocation model ready: {self.model.model_name}", "green")
         else:
-            cprint(f"\n🤖 Initializing Trading Agent with {self.ai_provider} model...", "cyan")
+            cprint(f"\n⚙️ Initializing Trading Agent with {self.ai_provider} model...", "cyan")
             self.model = model_factory.get_model(self.ai_provider, self.ai_model_name)
             self.swarm = None
 
@@ -658,7 +658,7 @@ class TradingAgent:
             cprint("   ⚡ LONG/SHORT - Full directional trading", "green")
             cprint("   💡 SELL signals can close longs OR open shorts", "white")
 
-        cprint("\n🤖 LLM Trading Agent initialized!", "green")
+        cprint("\n✅ LLM Trading Agent initialized!", "green")
         add_console_log("AI Agent initialized!", "success")
 
     def _build_swarm_models_config(self):
@@ -1138,7 +1138,7 @@ FULL DATASET:
             return {}
 
         cprint("\n" + "=" * 60, "yellow")
-        cprint("🤖 AI ANALYZING OPEN POSITIONS", "white", "on_magenta", attrs=["bold"])
+        cprint("📊 AI ANALYZING OPEN POSITIONS", "white", "on_magenta", attrs=["bold"])
         add_console_log("Analyzing Open Positions", "info")
         cprint("=" * 60, "yellow")
 
@@ -1939,7 +1939,7 @@ Return ONLY valid JSON with the following structure:
 
             cprint(f"\n{'=' * 60}", "cyan")
             cprint(f"🎯 Token: {token_short}", "cyan", attrs=["bold"])
-            cprint(f"🤖 Signal: {action} ({row['confidence']}% confidence)", "yellow", attrs=["bold"])
+            cprint(f"📊 Signal: {action} ({row['confidence']}% confidence)", "yellow", attrs=["bold"])
             cprint(f"💼 Current Position: ${current_position:.2f}", "white")
             cprint(f"{'=' * 60}", "cyan")
 
@@ -2216,8 +2216,8 @@ Return ONLY valid JSON with the following structure:
                     add_console_log(f"⏹️ Stop signal received - stopping analysis at {token}", "warning")
                     return
 
-                cprint(f"\n🤖 Analyzing {token}...", "white", "on_green")
-                add_console_log(f"🤖 Analyzing {token}...", "info")
+                cprint(f"\n📊 Analyzing {token}...", "white", "on_green")
+                add_console_log(f"📊 Analyzing {token}...", "info")
 
                 if strategy_signals and token in strategy_signals:
                     data["strategy_signals"] = strategy_signals[token]
