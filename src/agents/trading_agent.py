@@ -703,8 +703,8 @@ class TradingAgent:
             response = self.model.generate_response(
                 system_prompt=system_prompt,
                 user_content=user_content,
-                temperature=AI_TEMPERATURE,
-                max_tokens=AI_MAX_TOKENS
+                temperature=self.ai_temperature,
+                max_tokens=self.ai_max_tokens
             )
 
             if hasattr(response, "content"):
@@ -1180,8 +1180,8 @@ FULL DATASET:
 
                     market_summary[symbol] = {
                         "current_price": current_price,
-                        "ma20": latest.get("MA18", 0),
-                        "ma40": latest.get("MA90", 0),
+                        "ma20": latest.get("MA20", 0),
+                        "ma40": latest.get("MA40", 0),
                         "rsi": latest.get("RSI", 0),
                         "trend": "Bullish" if current_price > latest.get("MA20", 0) else "Bearish",
                     }
@@ -1666,8 +1666,8 @@ Return ONLY valid JSON with the following structure:
             # Filter to only valid tokens for this exchange
             if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
                 valid_tokens = SYMBOLS
-                actionable_recommendations = actionable_recommendations[
-                    actionable_recommendations["token"].isin(valid_tokens)
+                buy_recommendations = buy_recommendations[
+                    buy_recommendations["token"].isin(valid_tokens)
                 ]
                 if not LONG_ONLY:
                     sell_recommendations = sell_recommendations[
@@ -1675,8 +1675,8 @@ Return ONLY valid JSON with the following structure:
                     ]
             else:
                 valid_tokens = MONITORED_TOKENS
-                actionable_recommendations = actionable_recommendations[
-                    actionable_recommendations["token"].isin(valid_tokens)
+                buy_recommendations = buy_recommendations[
+                    buy_recommendations["token"].isin(valid_tokens)
                 ]
                 if not LONG_ONLY:
                     sell_recommendations = sell_recommendations[
@@ -1944,60 +1944,6 @@ Return ONLY valid JSON with the following structure:
                             except Exception:
                                 pass
 
-                        if direction == "LONG":
-                            # ============= LONG POSITION (BUY) =============
-                            if EXCHANGE == "HYPERLIQUID":
-                                cprint(f"🔵 HyperLiquid: ai_entry({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "cyan")
-                                add_console_log(f"🔵 Executing LONG: ai_entry({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
-                                n.ai_entry(token, effective_value, leverage=LEVERAGE, account=self.account)
-                            elif EXCHANGE == "ASTER":
-                                cprint(f"🟣 Aster: ai_entry({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "cyan")
-                                add_console_log(f"🟣 Executing LONG: ai_entry({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
-                                n.ai_entry(token, effective_value, leverage=LEVERAGE)
-                            else:
-                                cprint(f"🟢 Solana: ai_entry({token}, ${effective_value:.2f})", "cyan")
-                                add_console_log(f"Executing LONG: ai_entry({token}, ${effective_value:.2f})", "info")
-                                n.ai_entry(token, effective_value)
- 
-                            print(f"✅ LONG entry complete for {token}")
-                            add_console_log(f"✅ {token} LONG position opened successfully", "success")
- 
-                            # Log position open
-                            try:
-                                log_position_open(token, "LONG", effective_value)
-                            except Exception:
-                                pass
- 
-                        elif direction == "SHORT":
-                            # ============= SHORT POSITION (SELL) =============
-                            if EXCHANGE == "HYPERLIQUID":
-                                cprint(f"🔴 HyperLiquid: open_short({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "red")
-                                add_console_log(f"Executing SHORT: open_short({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
-                                n.open_short(token, effective_value, leverage=LEVERAGE, account=self.account)
-                            elif EXCHANGE == "ASTER":
-                                cprint(f"🟣 Aster: open_short({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "red")
-                                add_console_log(f"🟣 Executing SHORT: open_short({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
-                                
-                                # Aster may use different function - fallback to ai_entry with sell flag if available
-                                if hasattr(n, 'open_short'):
-                                    n.open_short(token, effective_value, leverage=LEVERAGE)
-                                else:
-                                    cprint(f"⚠️ open_short not available for ASTER, skipping", "yellow")
-                                    continue
-                            else:
-                                cprint(f"⚠️ SHORT positions not supported on SOLANA exchange", "yellow")
-                                add_console_log(f"⚠️ SHORT not supported on SOLANA", "warning")
-                                continue
- 
-                            print(f"✅ SHORT entry complete for {token}")
-                            add_console_log(f"✅ {token} SHORT position opened successfully", "success")
- 
-                            # Log position open
-                            try:
-                                log_position_open(token, "SHORT", effective_value)
-                            except Exception:
-                                pass
- 
                         # Record position entry in tracker for age-based decisions
                         if POSITION_TRACKER_AVAILABLE:
                             try:
@@ -2053,10 +1999,6 @@ Return ONLY valid JSON with the following structure:
                     traceback.print_exc()
 
                 time.sleep(2)
-
-            print(error_msg)
-            add_console_log(error_msg, "error")
-            print("🔧 Check the logs and try again!")
 
     def handle_exits(self):
         """
