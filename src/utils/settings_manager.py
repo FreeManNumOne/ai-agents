@@ -82,7 +82,7 @@ HYPERLIQUID_TOKENS = {
 }
 
 # Default settings - OPTIMIZED FOR TRADING
-# Uses OllamaFreeAPI with DeepSeek V3.1 as default (FREE, best for trading)
+# Uses OpenRouter with FREE DeepSeek V3.1 Nex-N1 as default
 DEFAULT_SETTINGS = {
     # Chart settings
     "timeframe": "30m",           # Default: 30 minutes (optimal for trading signals)
@@ -95,29 +95,26 @@ DEFAULT_SETTINGS = {
     # Token settings - Main trading tokens
     "monitored_tokens": ["BTC", "ETH", "SOL", "LTC", "AAVE", "AVAX", "HYPE"],
 
-    # Main AI Model settings - Gemini 2.5 Flash (FREE, reliable)
-    # Gemini has generous free tier with high reliability
-    "ai_provider": "gemini",          # FREE - reliable Google Gemini
-    "ai_model": "gemini-2.5-flash",   # Fast & capable, free tier
-    "ai_temperature": 0.5,            # Balanced for trading decisions
-    "ai_max_tokens": 2048,            # Sufficient for trading analysis
+    # Main AI Model settings - OpenRouter FREE model (best for trading)
+    # Uses official OpenRouter free models: https://openrouter.ai/collections/free-models
+    "ai_provider": "openrouter",                      # OpenRouter with FREE models
+    "ai_model": "nex-agi/deepseek-v3.1-nex-n1:free", # FREE - Best reasoning model
+    "ai_temperature": 0.5,                            # Balanced for trading decisions
+    "ai_max_tokens": 2048,                            # Sufficient for trading analysis
 
-    # Alternative configurations:
-    # Option A - OllamaFreeAPI (FREE but may have availability issues):
-    # "ai_provider": "ollamafreeapi",
-    # "ai_model": "deepseek-v3.1:671b",  # or "deepseek-v3.2"
-    #
-    # Option B - Local Ollama (requires 'ollama serve' running):
-    # "ai_provider": "ollama",
-    # "ai_model": "deepseek-v3.1:671b-q4_K_M",  # Quantized for memory efficiency
+    # Alternative FREE models on OpenRouter:
+    # "ai_model": "xiaomi/mimo-v2-flash:free",        # Ultra-fast
+    # "ai_model": "mistralai/devstral-2512:free",     # Coding optimized
+    # "ai_model": "tngtech/deepseek-r1t2-chimera:free", # Hybrid reasoning
+    # "ai_model": "kwaipilot/kat-coder-pro-v1:free",  # Code generation
 
     # Swarm AI Model settings (for multi-agent mode) - MAX 6 MODELS
-    # Defaults use FREE models to minimize costs
+    # Defaults use FREE OpenRouter models to minimize costs
     "swarm_models": [
-        {"provider": "gemini", "model": "gemini-2.0-flash", "temperature": 0.5, "max_tokens": 2048},
-        {"provider": "gemini", "model": "gemini-2.5-flash", "temperature": 0.5, "max_tokens": 2048},
-        {"provider": "ollamafreeapi", "model": "deepseek-v3.2", "temperature": 0.5, "max_tokens": 2048},
-        {"provider": "ollamafreeapi", "model": "qwen/qwen3:8b", "temperature": 0.5, "max_tokens": 2048},
+        {"provider": "openrouter", "model": "nex-agi/deepseek-v3.1-nex-n1:free", "temperature": 0.5, "max_tokens": 2048},
+        {"provider": "openrouter", "model": "xiaomi/mimo-v2-flash:free", "temperature": 0.5, "max_tokens": 2048},
+        {"provider": "openrouter", "model": "mistralai/devstral-2512:free", "temperature": 0.5, "max_tokens": 2048},
+        {"provider": "openrouter", "model": "tngtech/deepseek-r1t2-chimera:free", "temperature": 0.5, "max_tokens": 2048},
     ],
 
     # Timestamp
@@ -307,10 +304,13 @@ def get_available_models_for_provider(provider):
             'qwen3:8b': 'Qwen3 8B (FREE)',
         },
         'openrouter': {
-            # 🆓 FREE Models (No cost)
-            'deepseek/deepseek-chat-v3.1:free': '(FREE) DeepSeek V3.1 - 671B hybrid reasoning ⭐ DEFAULT',
-            'google/gemini-2.0-flash-exp:free': '(FREE) Gemini 2.0 Flash - Fast multimodal',
-            'nvidia/nemotron-nano-9b-v2:free': '(FREE) Nemotron Nano 9B - Compact reasoning',
+            # 🆓 FREE Models (Official OpenRouter Free Collection - January 2026)
+            # Source: https://openrouter.ai/collections/free-models
+            'nex-agi/deepseek-v3.1-nex-n1:free': '(FREE) DeepSeek V3.1 Nex-N1 - Best reasoning (DEFAULT)',
+            'xiaomi/mimo-v2-flash:free': '(FREE) Xiaomi MiMo-V2-Flash - Ultra-fast',
+            'mistralai/devstral-2512:free': '(FREE) Mistral Devstral - Coding optimized',
+            'tngtech/deepseek-r1t2-chimera:free': '(FREE) DeepSeek R1T2 Chimera - Hybrid reasoning',
+            'kwaipilot/kat-coder-pro-v1:free': '(FREE) KAT Coder Pro V1 - Code generation',
             # xAI Grok Models
             'x-ai/grok-4.1-fast': 'Grok 4.1 Fast - Best agentic tool calling (2M context)',
             # DeepSeek Models

@@ -141,10 +141,13 @@ OLLAMA_MODELS = {
 # 🌐 OPENROUTER MODELS (200+ Models)
 # ============================================================================
 OPENROUTER_MODELS = {
-    # 🆓 FREE Models (No cost)
-    "deepseek/deepseek-chat-v3.1:free": "(FREE) DeepSeek V3.1 - 671B hybrid reasoning",
-    "google/gemini-2.0-flash-exp:free": "(FREE) Gemini 2.0 Flash - Fast multimodal",
-    "nvidia/nemotron-nano-9b-v2:free": "(FREE) Nemotron Nano 9B - Compact reasoning",
+    # 🆓 FREE Models (Official OpenRouter Free Collection - January 2026)
+    # Source: https://openrouter.ai/collections/free-models
+    "nex-agi/deepseek-v3.1-nex-n1:free": "(FREE) DeepSeek V3.1 Nex-N1 - Best reasoning (DEFAULT)",
+    "xiaomi/mimo-v2-flash:free": "(FREE) Xiaomi MiMo-V2-Flash - Ultra-fast",
+    "mistralai/devstral-2512:free": "(FREE) Mistral Devstral - Coding optimized",
+    "tngtech/deepseek-r1t2-chimera:free": "(FREE) DeepSeek R1T2 Chimera - Hybrid reasoning",
+    "kwaipilot/kat-coder-pro-v1:free": "(FREE) KAT Coder Pro V1 - Code generation",
 
     # 🚀 xAI Grok Models
     "x-ai/grok-4.1-fast": "Grok 4.1 Fast - Best agentic tool calling (2M context)",
@@ -195,9 +198,9 @@ TRADING_RECOMMENDED = {
         "description": "Best for strategy development"
     },
     "free": {
-        "model": "deepseek/deepseek-chat-v3.1:free",
+        "model": "nex-agi/deepseek-v3.1-nex-n1:free",
         "provider": "openrouter",
-        "description": "FREE DeepSeek V3.1 - Best free model for trading"
+        "description": "FREE DeepSeek V3.1 Nex-N1 - Best free model for trading"
     }
 }
 
