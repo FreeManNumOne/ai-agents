@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PULS-R Dashboard</title>
+    <title>AI Trading Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -33,6 +33,10 @@
 
         <!-- Dropdown Menu -->
         <div id="dropdown-menu" class="dropdown-menu">
+            <a class="menu-item" href="/backtest" style="text-decoration: none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
+                <span>Backtesting</span>
+            </a>
             <button class="menu-item" onclick="openTimezoneModal();toggleMenu();">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 <span>Timezone</span>
@@ -50,12 +54,12 @@
         <!-- Account Summary -->
         <div class="account-summary">
             <div class="summary-item">
-                <span class="label">Balance</span>
+                <span class="label">Account Balance</span>
                 <span class="value" id="balance">$0.00</span>
                 <span class="sublabel">Free USDC</span>
             </div>
             <div class="summary-item">
-                <span class="label">Equity</span>
+                <span class="label">Total Equity</span>
                 <span class="value" id="equity">$0.00</span>
                 <span class="sublabel">Including Positions</span>
             </div>
@@ -78,7 +82,7 @@
                 <!-- Positions -->
                 <div class="card">
                     <div class="card-header">
-                        <h2>Positions</h2>
+                        <h2>Open Positions</h2>
                         <span class="badge" id="position-count">0</span>
                     </div>
                     <div class="positions-container" id="positions">
@@ -101,8 +105,8 @@
                     <div class="portfolio-chart" id="portfolio-chart">
                         <!-- Chart will be rendered here -->
                     </div>
-                    <div class="positions-container" id="positions">
-                        <div class="empty-state">No open positions</div>
+                    <div class="trades-container" id="trades">
+                        <div class="empty-state">No recent trades</div>
                     </div>
                 </div>
             </div>
@@ -123,7 +127,7 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <p>Auto-updates every 10 seconds • automated trading cycles • HyperLiquid Exchange</p>
+            <p>Auto-updates every 10 seconds • 60-minute trading cycles • HyperLiquid Exchange</p>
         </footer>
     </div>
 
@@ -233,7 +237,7 @@
                 <div id="tab-token" class="settings-tab-content">
                     <div class="setting-section">
                         <h3 class="section-title">Token Selection</h3>
-                        <p class="section-desc">Select tokens to monitor from exchange</p>
+                        <p class="section-desc">Select tokens to monitor from Hyperliquid exchange</p>
 
                         <div class="token-categories">
                             <!-- Crypto Category -->
@@ -497,16 +501,16 @@
                                     <li>Up to 5 tokens</li>
                                     <li>5+ minute cycles</li>
                                     <li>Single AI mode only</li>
-                                    <li>Free AI models included</li>
+                                    <li>Free AI models (Ollama)</li>
                                 </ul>
                                 <button class="btn-select-plan" onclick="selectTier('based')">Select</button>
                             </div>
 
                             <!-- Trader Plan -->
                             <div class="plan-card recommended" data-tier="trader">
-                                <div class="plan-name">Core</div>
-                                <div class="plan-price">$1</div>
-                                <div class="plan-period">per day</div>
+                                <div class="plan-name">Trader</div>
+                                <div class="plan-price">$5</div>
+                                <div class="plan-period">per month</div>
                                 <ul class="plan-features">
                                     <li>Up to 10 tokens</li>
                                     <li>5+ minute cycles</li>
@@ -520,8 +524,8 @@
                             <!-- Pro Plan -->
                             <div class="plan-card" data-tier="pro">
                                 <div class="plan-name">Pro</div>
-                                <div class="plan-price">$200</div>
-                                <div class="plan-period">per year</div>
+                                <div class="plan-price">$20</div>
+                                <div class="plan-period">per month</div>
                                 <ul class="plan-features">
                                     <li>Unlimited tokens</li>
                                     <li>Any cycle time</li>
