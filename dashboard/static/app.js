@@ -593,9 +593,9 @@ function applySettings(settings) {
     selectedTokens = settings.monitored_tokens || ['ETH', 'BTC', 'SOL'];
     updateTokenSelection();
 
-    // Main model settings - Default to OpenRouter with FREE DeepSeek V3.1
+    // Main model settings - Default to OpenRouter with FREE DeepSeek V3.1 Nex-N1
     const defaultProvider = settings.ai_provider || 'openrouter';
-    const defaultModel = settings.ai_model || 'deepseek/deepseek-chat-v3.1:free';
+    const defaultModel = settings.ai_model || 'nex-agi/deepseek-v3.1-nex-n1:free';
     document.getElementById('main-provider-select').value = defaultProvider;
     updateMainModelOptions();
     document.getElementById('main-model-select').value = defaultModel;
@@ -607,12 +607,13 @@ function applySettings(settings) {
 
     document.getElementById('main-max-tokens').value = settings.ai_max_tokens || 2000;
 
-    // Swarm models - Default to 4 FREE models for cost-effective consensus
+    // Swarm models - Default to 4 FREE OpenRouter models for cost-effective consensus
+    // Source: https://openrouter.ai/collections/free-models
     swarmModels = settings.swarm_models || [
-        { provider: 'openrouter', model: 'deepseek/deepseek-chat-v3.1:free', temperature: 0.5, max_tokens: 2048 },
-        { provider: 'openrouter', model: 'google/gemini-2.0-flash-exp:free', temperature: 0.5, max_tokens: 2048 },
-        { provider: 'openrouter', model: 'nvidia/nemotron-nano-9b-v2:free', temperature: 0.5, max_tokens: 2048 },
-        { provider: 'ollamafreeapi', model: 'qwen3:8b', temperature: 0.5, max_tokens: 2048 }
+        { provider: 'openrouter', model: 'nex-agi/deepseek-v3.1-nex-n1:free', temperature: 0.5, max_tokens: 2048 },
+        { provider: 'openrouter', model: 'xiaomi/mimo-v2-flash:free', temperature: 0.5, max_tokens: 2048 },
+        { provider: 'openrouter', model: 'mistralai/devstral-2512:free', temperature: 0.5, max_tokens: 2048 },
+        { provider: 'openrouter', model: 'tngtech/deepseek-r1t2-chimera:free', temperature: 0.5, max_tokens: 2048 }
     ];
     renderSwarmModels();
 }
@@ -710,7 +711,7 @@ function populateProviderDropdowns() {
 // Get display name for provider
 function getProviderDisplayName(provider) {
     const names = {
-        'openrouter': '⭐ OpenRouter (FREE Models Available)',
+        'openrouter': 'OpenRouter (FREE Models Available)',
         'anthropic': 'Anthropic (Claude)',
         'openai': 'OpenAI',
         'gemini': 'Google Gemini',
@@ -840,7 +841,7 @@ function addSwarmModel() {
 
     swarmModels.push({
         provider: 'openrouter',
-        model: 'deepseek/deepseek-chat-v3.1:free',
+        model: 'nex-agi/deepseek-v3.1-nex-n1:free',
         temperature: 0.3,
         max_tokens: 2000
     });

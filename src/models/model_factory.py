@@ -109,7 +109,7 @@ class ModelFactory:
         "ollama": "deepseek-v3.1:671b-q4_K_M",       # DeepSeek V3.1 Quantized - memory efficient
         "ollamafreeapi": "deepseek-v3.2",            # DeepSeek V3.2 - FREE, latest flagship
         "xai": "grok-4-1-fast-reasoning",            # xAI's Grok 4.1 - best overall
-        "openrouter": "google/gemini-2.5-flash"      # OpenRouter - fast Gemini
+        "openrouter": "nex-agi/deepseek-v3.1-nex-n1:free"  # OpenRouter - FREE default
     }
     
     def __init__(self):

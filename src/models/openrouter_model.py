@@ -15,20 +15,31 @@ class OpenRouterModel(BaseModel):
 
     AVAILABLE_MODELS = {
         # ============================================================================
-        # 🆓 FREE MODELS (No cost - recommended for testing)
+        # 🆓 FREE MODELS (Official OpenRouter Free Collection - January 2026)
+        # Source: https://openrouter.ai/collections/free-models
         # ============================================================================
-        "deepseek-chat-v3.1:free": {
-            "description": "(FREE) DeepSeek V3.1 - 671B hybrid reasoning - 128k context",
+        "nex-agi/deepseek-v3.1-nex-n1:free": {
+            "description": "(FREE) DeepSeek V3.1 Nex-N1 - Best reasoning (DEFAULT)",
             "input_price": "FREE",
             "output_price": "FREE"
         },
-        "gemini-2.0-flash-exp:free": {
-            "description": "(FREE) Gemini 2.0 Flash - Fast multimodal - 1M context",
+        "xiaomi/mimo-v2-flash:free": {
+            "description": "(FREE) Xiaomi MiMo-V2-Flash - Ultra-fast",
             "input_price": "FREE",
             "output_price": "FREE"
         },
-        "nemotron-nano-9b-v2:free": {
-            "description": "(FREE) Nemotron Nano 9B - Compact reasoning model - 32k context",
+        "mistralai/devstral-2512:free": {
+            "description": "(FREE) Mistral Devstral - Coding optimized",
+            "input_price": "FREE",
+            "output_price": "FREE"
+        },
+        "tngtech/deepseek-r1t2-chimera:free": {
+            "description": "(FREE) DeepSeek R1T2 Chimera - Hybrid reasoning",
+            "input_price": "FREE",
+            "output_price": "FREE"
+        },
+        "kwaipilot/kat-coder-pro-v1:free": {
+            "description": "(FREE) KAT Coder Pro V1 - Code generation",
             "input_price": "FREE",
             "output_price": "FREE"
         },
@@ -113,7 +124,7 @@ class OpenRouterModel(BaseModel):
         },
     }
 
-    def __init__(self, api_key: str, model_name: str = "deepseek/deepseek-chat-v3.1:free", **kwargs):
+    def __init__(self, api_key: str, model_name: str = "nex-agi/deepseek-v3.1-nex-n1:free", **kwargs):
         # Validate API key
         if not api_key or len(api_key.strip()) == 0:
             raise ValueError("API key is empty or None")
