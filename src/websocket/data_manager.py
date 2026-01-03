@@ -1,0 +1,417 @@
+"""
+Moon Dev's WebSocket Data Manager
+Unified interface for real-time market data that replaces API polling
+Built with love by Moon Dev
+
+This module provides drop-in replacement functions that:
+1. Use WebSocket data when available and fresh
+2. Fall back to API polling when WebSocket is unavailable
+3. Maintain backward compatibility with existing code
+
+Usage:
+    # Replace imports in your code:
+    # Before: from src.nice_funcs_hyperliquid import ask_bid, get_current_price
+    # After:  from src.websocket.data_manager import ask_bid, get_current_price
+
+    # Or use the smart functions that auto-select data source:
+    from src.websocket.data_manager import get_price, get_bid_ask
+"""
+
+import time
+import threading
+import logging
+from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+
+from termcolor import cprint
+
+# Configure module logger
+logger = logging.getLogger(__name__)
+
+
+class WebSocketDataManager:
+    """
+    Unified data manager that provides real-time market data
+    with automatic fallback to API polling
+
+    This is the main interface for replacing API polling with WebSocket data.
+    """
+
+    # Data staleness thresholds
+    PRICE_STALE_THRESHOLD_SEC = 5.0  # Consider price stale after 5 seconds
+    ORDERBOOK_STALE_THRESHOLD_SEC = 2.0  # Consider orderbook stale after 2 seconds
+
+    def __init__(self, auto_start: bool = False, coins: List[str] = None):
+        """
+        Initialize the data manager
+
+        Args:
+            auto_start: Automatically start WebSocket feeds
+            coins: List of coins to monitor (uses config if not provided)
+        """
+        self._price_feed = None
+        self._orderbook_feed = None
+        self._ws_client = None
+        self._is_initialized = False
+        self._lock = threading.Lock()
+
+        # Get config
+        try:
+            from src.config import USE_WEBSOCKET_FEEDS, WEBSOCKET_FALLBACK_TO_API
+            self._use_websocket = USE_WEBSOCKET_FEEDS
+            self._fallback_to_api = WEBSOCKET_FALLBACK_TO_API
+        except ImportError:
+            self._use_websocket = True
+            self._fallback_to_api = True
+
+        if auto_start:
+            self.start(coins)
+
+    def start(self, coins: List[str] = None) -> bool:
+        """
+        Start the WebSocket data feeds
+
+        Args:
+            coins: List of coins to monitor
+
+        Returns:
+            bool: True if started successfully
+        """
+        if self._is_initialized:
+            return True
+
+        if not self._use_websocket:
+            logger.info("WebSocket feeds disabled by config")
+            return False
+
+        with self._lock:
+            try:
+                from src.websocket.hyperliquid_ws import HyperliquidWebSocket
+                from src.websocket.price_feed import PriceFeed
+                from src.websocket.orderbook_feed import OrderBookFeed
+
+                # Create shared WebSocket client
+                self._ws_client = HyperliquidWebSocket(auto_reconnect=True)
+                self._ws_client.connect()
+
+                # Wait for connection
+                timeout = 10
+                start = time.time()
+                while not self._ws_client.is_connected and (time.time() - start) < timeout:
+                    time.sleep(0.1)
+
+                if not self._ws_client.is_connected:
+                    logger.error("Failed to connect WebSocket")
+                    return False
+
+                # Get coins from config if not provided
+                if coins is None:
+                    try:
+                        from src.config import HYPERLIQUID_SYMBOLS
+                        coins = HYPERLIQUID_SYMBOLS
+                    except ImportError:
+                        coins = ['BTC', 'ETH', 'SOL']
+
+                # Create price feed with shared WebSocket
+                self._price_feed = PriceFeed(ws_client=self._ws_client)
+                self._price_feed.start(coins)
+
+                # Create orderbook feed with shared WebSocket
+                self._orderbook_feed = OrderBookFeed(ws_client=self._ws_client)
+                self._orderbook_feed.start(coins)
+
+                self._is_initialized = True
+                cprint("WebSocket data manager started", "green")
+                logger.info(f"Data manager initialized for {len(coins)} coins")
+                return True
+
+            except Exception as e:
+                logger.error(f"Failed to start data manager: {e}")
+                cprint(f"Failed to start WebSocket data manager: {e}", "red")
+                return False
+
+    def stop(self):
+        """Stop all WebSocket feeds"""
+        with self._lock:
+            if self._price_feed:
+                self._price_feed.stop()
+            if self._orderbook_feed:
+                self._orderbook_feed.stop()
+            if self._ws_client:
+                self._ws_client.close()
+            self._is_initialized = False
+            cprint("WebSocket data manager stopped", "yellow")
+
+    def is_running(self) -> bool:
+        """Check if data manager is running"""
+        return self._is_initialized and self._ws_client and self._ws_client.is_connected
+
+    # ========================================================================
+    # PRICE DATA METHODS
+    # ========================================================================
+
+    def get_current_price(self, symbol: str) -> float:
+        """
+        Get current price for a symbol
+
+        Uses WebSocket data if available, falls back to API polling
+
+        Args:
+            symbol: Trading pair symbol (e.g., 'BTC')
+
+        Returns:
+            Current mid price
+        """
+        # Try WebSocket first
+        if self._is_initialized and self._price_feed:
+            price = self._price_feed.get_price(symbol)
+            if price is not None and not self._price_feed.is_price_stale(symbol, self.PRICE_STALE_THRESHOLD_SEC):
+                return price
+
+        # Fall back to API
+        if self._fallback_to_api:
+            return self._api_get_current_price(symbol)
+
+        raise Exception(f"No price data available for {symbol}")
+
+    def get_ask_bid(self, symbol: str) -> Tuple[float, float, None]:
+        """
+        Get ask and bid prices for a symbol
+
+        Returns tuple matching the API format: (ask, bid, levels)
+
+        Args:
+            symbol: Trading pair symbol
+
+        Returns:
+            Tuple of (ask, bid, None)
+        """
+        # Try WebSocket first
+        if self._is_initialized and self._price_feed:
+            ticker = self._price_feed.get_ticker(symbol)
+            if ticker and ticker.ask > 0 and ticker.bid > 0:
+                if not self._price_feed.is_price_stale(symbol, self.PRICE_STALE_THRESHOLD_SEC):
+                    return (ticker.ask, ticker.bid, None)
+
+        # Try orderbook for more accurate bid/ask
+        if self._is_initialized and self._orderbook_feed:
+            book = self._orderbook_feed.get_orderbook(symbol)
+            if book and book.best_ask and book.best_bid:
+                if not self._orderbook_feed.is_orderbook_stale(symbol, self.ORDERBOOK_STALE_THRESHOLD_SEC):
+                    return (book.best_ask, book.best_bid, None)
+
+        # Fall back to API
+        if self._fallback_to_api:
+            return self._api_ask_bid(symbol)
+
+        raise Exception(f"No bid/ask data available for {symbol}")
+
+    # ========================================================================
+    # ORDERBOOK DATA METHODS
+    # ========================================================================
+
+    def get_orderbook(self, symbol: str) -> Dict:
+        """
+        Get order book for a symbol
+
+        Args:
+            symbol: Trading pair symbol
+
+        Returns:
+            Dict with bids, asks, and depth info
+        """
+        # Try WebSocket first
+        if self._is_initialized and self._orderbook_feed:
+            book = self._orderbook_feed.get_orderbook(symbol)
+            if book and not self._orderbook_feed.is_orderbook_stale(symbol, self.ORDERBOOK_STALE_THRESHOLD_SEC):
+                return book.to_dict()
+
+        # Fall back to API
+        if self._fallback_to_api:
+            return self._api_get_orderbook(symbol)
+
+        raise Exception(f"No orderbook data available for {symbol}")
+
+    def get_depth(self, symbol: str) -> Dict[str, float]:
+        """Get order book depth for a symbol"""
+        if self._is_initialized and self._orderbook_feed:
+            return self._orderbook_feed.get_depth(symbol)
+        return {"bid_depth": 0, "ask_depth": 0, "imbalance": 0}
+
+    def get_spread(self, symbol: str) -> Optional[float]:
+        """Get spread for a symbol"""
+        if self._is_initialized and self._orderbook_feed:
+            return self._orderbook_feed.get_spread(symbol)
+        return None
+
+    # ========================================================================
+    # API FALLBACK METHODS
+    # ========================================================================
+
+    def _api_get_current_price(self, symbol: str) -> float:
+        """Get price via API (fallback)"""
+        from src.nice_funcs_hyperliquid import get_current_price as hl_get_price
+        return hl_get_price(symbol)
+
+    def _api_ask_bid(self, symbol: str) -> Tuple[float, float, any]:
+        """Get ask/bid via API (fallback)"""
+        from src.nice_funcs_hyperliquid import ask_bid as hl_ask_bid
+        return hl_ask_bid(symbol)
+
+    def _api_get_orderbook(self, symbol: str) -> Dict:
+        """Get orderbook via API (fallback)"""
+        ask, bid, levels = self._api_ask_bid(symbol)
+
+        # Parse levels into structured format
+        bids = []
+        asks = []
+
+        if levels and len(levels) >= 2:
+            for level in levels[0][:20]:  # Top 20 bids
+                bids.append({
+                    "price": float(level.get("px", 0)),
+                    "size": float(level.get("sz", 0))
+                })
+            for level in levels[1][:20]:  # Top 20 asks
+                asks.append({
+                    "price": float(level.get("px", 0)),
+                    "size": float(level.get("sz", 0))
+                })
+
+        return {
+            "coin": symbol,
+            "bids": bids,
+            "asks": asks,
+            "best_bid": bid,
+            "best_ask": ask
+        }
+
+
+# ============================================================================
+# GLOBAL INSTANCE AND DROP-IN REPLACEMENT FUNCTIONS
+# ============================================================================
+
+_global_data_manager: Optional[WebSocketDataManager] = None
+_global_lock = threading.Lock()
+
+
+def get_data_manager() -> WebSocketDataManager:
+    """Get the global WebSocketDataManager instance"""
+    global _global_data_manager
+    with _global_lock:
+        if _global_data_manager is None:
+            _global_data_manager = WebSocketDataManager()
+        return _global_data_manager
+
+
+def start_websocket_feeds(coins: List[str] = None) -> bool:
+    """
+    Start WebSocket data feeds
+
+    Call this once at application startup to enable WebSocket data.
+
+    Args:
+        coins: List of coins to monitor
+
+    Returns:
+        bool: True if started successfully
+    """
+    manager = get_data_manager()
+    return manager.start(coins)
+
+
+def stop_websocket_feeds():
+    """Stop WebSocket data feeds"""
+    manager = get_data_manager()
+    manager.stop()
+
+
+# ============================================================================
+# DROP-IN REPLACEMENT FUNCTIONS
+# These can replace the API polling functions from nice_funcs_hyperliquid
+# ============================================================================
+
+def get_current_price(symbol: str) -> float:
+    """
+    Get current price for a symbol (drop-in replacement)
+
+    This function automatically uses WebSocket data if available,
+    otherwise falls back to API polling.
+
+    Args:
+        symbol: Trading pair symbol (e.g., 'BTC')
+
+    Returns:
+        Current mid price
+    """
+    manager = get_data_manager()
+    return manager.get_current_price(symbol)
+
+
+def ask_bid(symbol: str) -> Tuple[float, float, any]:
+    """
+    Get ask and bid prices for a symbol (drop-in replacement)
+
+    Returns tuple matching the API format: (ask, bid, levels)
+
+    Args:
+        symbol: Trading pair symbol
+
+    Returns:
+        Tuple of (ask, bid, levels)
+    """
+    manager = get_data_manager()
+    return manager.get_ask_bid(symbol)
+
+
+def get_market_info() -> Dict:
+    """
+    Get current market info for all coins (drop-in replacement)
+
+    Returns:
+        Dict mapping coin symbols to mid prices
+    """
+    manager = get_data_manager()
+
+    if manager.is_running() and manager._price_feed:
+        prices = manager._price_feed.get_all_prices()
+        return {coin: str(ticker.price) for coin, ticker in prices.items()}
+
+    # Fall back to API
+    from src.nice_funcs_hyperliquid import get_market_info as hl_get_market_info
+    return hl_get_market_info()
+
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+def is_websocket_enabled() -> bool:
+    """Check if WebSocket feeds are enabled"""
+    try:
+        from src.config import USE_WEBSOCKET_FEEDS
+        return USE_WEBSOCKET_FEEDS
+    except ImportError:
+        return True
+
+
+def is_websocket_connected() -> bool:
+    """Check if WebSocket is connected and running"""
+    manager = get_data_manager()
+    return manager.is_running()
+
+
+def get_data_source(symbol: str) -> str:
+    """
+    Get the current data source for a symbol
+
+    Returns:
+        'websocket' or 'api'
+    """
+    manager = get_data_manager()
+
+    if manager.is_running() and manager._price_feed:
+        if not manager._price_feed.is_price_stale(symbol, manager.PRICE_STALE_THRESHOLD_SEC):
+            return 'websocket'
+
+    return 'api'
