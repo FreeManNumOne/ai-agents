@@ -443,7 +443,7 @@ html, body {
 
 .position-value,
 .trade-value {
-    font-size: 9px;
+    font-size: 12px;
     font-variant-numeric: tabular-nums;
     color: var(--text-primary);
     font-weight: 500;
