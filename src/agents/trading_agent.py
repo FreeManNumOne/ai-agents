@@ -1976,7 +1976,7 @@ Return ONLY valid JSON with the following structure:
         3. OPEN new positions (execute_allocations)
         """
         cprint("\n🔄 PHASE 1: Checking for positions to exit...", "white", "on_blue")
-        add_console_log("🔄 Phase 1: Closing positions with SELL signals", "info")
+        add_console_log("🔄 Phase 1: Closing positions...", "info")
 
         positions_closed = 0
         positions_held = 0
