@@ -1628,18 +1628,18 @@ Return ONLY valid JSON with the following structure:
             return None
 
 
-    def allocate_portfolio(self):
+def allocate_portfolio(self):
         """
         Smart Portfolio Allocation - Equal Distribution
 
         CRITICAL: This implements SMART POSITION SIZING to prevent all funds
         from going to the first position. Funds are distributed EQUALLY across
-        all BUY recommendations.
+        all BUY recommendations (and SELL recommendations if not LONG_ONLY).
 
         Strategy:
-        1. Get all BUY recommendations
+        1. Get all BUY recommendations (and SELL if shorting enabled)
         2. Calculate available margin (90% of account balance)
-        3. Divide equally among all BUY tokens
+        3. Divide equally among all actionable signals
         4. Ensure minimum order size ($12 notional / leverage)
         5. NO PARTIAL CLOSES - positions are binary (KEEP 100% or CLOSE 100%)
         """
@@ -1648,32 +1648,42 @@ Return ONLY valid JSON with the following structure:
             cprint("💰 SMART PORTFOLIO ALLOCATION", "white", "on_blue", attrs=["bold"])
             cprint("=" * 60, "cyan")
 
-            # Filter only BUY recommendations
+            # Filter BUY recommendations
             buy_recommendations = self.recommendations_df[
                 self.recommendations_df["action"] == "BUY"
             ]
 
-            if buy_recommendations.empty:
-                cprint("✅ No BUY recommendations. Skipping allocation.", "green")
-                add_console_log("No BUY signals - skipping allocation", "info")
+            # Filter SELL recommendations (for SHORT positions if not LONG_ONLY)
+            sell_recommendations = pd.DataFrame()
+            if not LONG_ONLY:
+                sell_recommendations = self.recommendations_df[
+                    self.recommendations_df["action"] == "SELL"
+                ]
+
+            # Combine actionable recommendations
+            actionable_recommendations = pd.concat([buy_recommendations, sell_recommendations], ignore_index=True)
+
+            if actionable_recommendations.empty:
+                cprint("✅ No actionable recommendations. Skipping allocation.", "green")
+                add_console_log("No BUY/SELL signals - skipping allocation", "info")
                 return {}
 
             # Filter to only valid tokens for this exchange
             if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
                 valid_tokens = SYMBOLS
-                buy_recommendations = buy_recommendations[
-                    buy_recommendations["token"].isin(valid_tokens)
+                actionable_recommendations = actionable_recommendations[
+                    actionable_recommendations["token"].isin(valid_tokens)
                 ]
-                cprint(f"📋 Valid {EXCHANGE} symbols: {list(buy_recommendations['token'])}", "cyan")
-                add_console_log(f"Valid tokens for allocation: {list(buy_recommendations['token'])}", "info")
+                cprint(f"📋 Valid {EXCHANGE} symbols: {list(actionable_recommendations['token'])}", "cyan")
+                add_console_log(f"Valid tokens for allocation: {list(actionable_recommendations['token'])}", "info")
             else:
                 valid_tokens = MONITORED_TOKENS
-                buy_recommendations = buy_recommendations[
-                    buy_recommendations["token"].isin(valid_tokens)
+                actionable_recommendations = actionable_recommendations[
+                    actionable_recommendations["token"].isin(valid_tokens)
                 ]
 
-            if buy_recommendations.empty:
-                cprint("⚠️ No BUY recommendations for valid exchange tokens", "yellow")
+            if actionable_recommendations.empty:
+                cprint("⚠️ No actionable recommendations for valid exchange tokens", "yellow")
                 add_console_log("No valid tokens to allocate after filtering", "warning")
                 return {}
 
@@ -1686,10 +1696,17 @@ Return ONLY valid JSON with the following structure:
             # ================================================================
             # 🎯 SMART POSITION SIZING - EQUAL DISTRIBUTION
             # ================================================================
-            num_positions = len(buy_recommendations)
-            buy_tokens = list(buy_recommendations["token"])
+            num_positions = len(actionable_recommendations)
+            actionable_tokens = list(actionable_recommendations["token"])
+
+            # Count BUY vs SELL for logging
+            num_buys = len(buy_recommendations)
+            num_sells = len(sell_recommendations)
 
             cprint(f"\n🎯 SMART SIZING: {num_positions} position(s) to allocate", "yellow", attrs=["bold"])
+            cprint(f"   📈 BUY signals: {num_buys}", "green")
+            if not LONG_ONLY:
+                cprint(f"   📉 SELL signals (shorts): {num_sells}", "red")
             cprint(f"   💵 Account Balance: ${account_balance:.2f}", "white")
             cprint(f"   📈 Max Position %: {MAX_POSITION_PERCENTAGE}%", "white")
 
@@ -1711,11 +1728,11 @@ Return ONLY valid JSON with the following structure:
             cprint(f"   📏 Margin Per Position: ${margin_per_position:.2f}", "green", attrs=["bold"])
             cprint(f"   ⚡ Leverage: {LEVERAGE}x", "white")
             cprint(f"   💎 Notional Per Position: ${margin_per_position * LEVERAGE:.2f}", "cyan", attrs=["bold"])
-            cprint(f"   🛡️  Cash Buffer (10%): ${cash_buffer:.2f}", "yellow")
+            cprint(f"   🛡️ Cash Buffer (10%): ${cash_buffer:.2f}", "yellow")
 
             # Check if we can meet minimum order size for all positions
             if margin_per_position < min_margin_per_position:
-                cprint(f"\n⚠️  WARNING: Margin per position (${margin_per_position:.2f}) below minimum (${min_margin_per_position:.2f})", "yellow")
+                cprint(f"\n⚠️ WARNING: Margin per position (${margin_per_position:.2f}) below minimum (${min_margin_per_position:.2f})", "yellow")
                 cprint(f"   Reducing number of positions to meet minimum order size...", "yellow")
 
                 # Calculate how many positions we can actually support
@@ -1727,21 +1744,32 @@ Return ONLY valid JSON with the following structure:
                     return {}
 
                 # Sort by confidence and take top N
-                buy_recommendations = buy_recommendations.nlargest(max_supportable_positions, 'confidence')
-                buy_tokens = list(buy_recommendations["token"])
-                num_positions = len(buy_tokens)
+                actionable_recommendations = actionable_recommendations.nlargest(max_supportable_positions, 'confidence')
+                actionable_tokens = list(actionable_recommendations["token"])
+                num_positions = len(actionable_tokens)
                 margin_per_position = total_available_margin / num_positions
 
                 cprint(f"   📉 Reduced to {num_positions} highest-confidence position(s)", "yellow")
                 cprint(f"   📏 New Margin Per Position: ${margin_per_position:.2f}", "green")
 
-            # Build equal allocation dictionary
+            # Build allocation dictionary with side information
+            # Format: {token: {"amount": float, "side": "LONG" or "SHORT"}}
             allocations = {}
-            for token in buy_tokens:
-                allocations[token] = round(margin_per_position, 2)
+            for _, row in actionable_recommendations.iterrows():
+                token = row["token"]
+                action = row["action"]
+                side = "LONG" if action == "BUY" else "SHORT"
+                
+                allocations[token] = {
+                    "amount": round(margin_per_position, 2),
+                    "side": side
+                }
 
             # Add cash buffer
-            allocations[USDC_ADDRESS] = round(cash_buffer, 2)
+            allocations[USDC_ADDRESS] = {
+                "amount": round(cash_buffer, 2),
+                "side": "CASH"
+            }
 
             # ================================================================
             # 📊 DISPLAY FINAL ALLOCATION
@@ -1751,14 +1779,19 @@ Return ONLY valid JSON with the following structure:
             cprint("=" * 60, "green")
 
             total_allocated = 0
-            for token, amount in allocations.items():
+            for token, allocation_info in allocations.items():
+                amount = allocation_info["amount"]
+                side = allocation_info["side"]
+                
                 if token == USDC_ADDRESS:
-                    cprint(f"   🛡️  USDC (Cash Buffer): ${amount:.2f}", "yellow")
+                    cprint(f"   🛡️ USDC (Cash Buffer): ${amount:.2f}", "yellow")
                 else:
                     notional = amount * LEVERAGE
-                    cprint(f"   💎 {token}: ${amount:.2f} margin → ${notional:.2f} notional", "green")
+                    side_emoji = "📈" if side == "LONG" else "📉"
+                    side_color = "green" if side == "LONG" else "red"
+                    cprint(f"   {side_emoji} {token} ({side}): ${amount:.2f} margin → ${notional:.2f} notional", side_color)
                     total_allocated += amount
-                    add_console_log(f"Allocating {token}: ${amount:.2f} margin (${notional:.2f} notional)", "info")
+                    add_console_log(f"Allocating {token} {side}: ${amount:.2f} margin (${notional:.2f} notional)", "info")
 
             cprint(f"\n   📈 Total Margin Allocated: ${total_allocated:.2f}", "cyan", attrs=["bold"])
             cprint(f"   💰 Total Notional Exposure: ${total_allocated * LEVERAGE:.2f}", "cyan", attrs=["bold"])
@@ -1772,16 +1805,26 @@ Return ONLY valid JSON with the following structure:
             traceback.print_exc()
             return None
 
-    def execute_allocations(self, allocation_dict):
-        """Execute the allocations using AI entry for each position"""
+
+def execute_allocations(self, allocation_dict):
+        """Execute the allocations using AI entry for each position (supports LONG and SHORT)"""
         try:
             print("\n🚀 Executing portfolio allocations...")
             add_console_log("🚀 Starting portfolio allocations", "info")
 
-            for token, amount in allocation_dict.items():
+            for token, allocation_info in allocation_dict.items():
                 if token in EXCLUDED_TOKENS:
-                    print(f"💵 Keeping ${float(amount):.2f} in {token}")
+                    print(f"💵 Keeping ${float(allocation_info['amount']):.2f} in {token}")
                     continue
+
+                # Extract amount and side from allocation_info
+                if isinstance(allocation_info, dict):
+                    amount = allocation_info["amount"]
+                    side = allocation_info.get("side", "LONG")  # Default to LONG if not specified
+                else:
+                    # Fallback for old format (just a number)
+                    amount = allocation_info
+                    side = "LONG"
 
                 # Validate token for exchange
                 if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
@@ -1795,8 +1838,9 @@ Return ONLY valid JSON with the following structure:
                         add_console_log(f"⚠️ Skipped invalid token: {token}", "warning")
                         continue
 
-                print(f"\n🎯 Processing allocation for {token}...")
-                add_console_log(f"🎯 Processing {token} allocation: ${amount:.2f}", "info")
+                side_emoji = "📈" if side == "LONG" else "📉"
+                print(f"\n{side_emoji} Processing {side} allocation for {token}...")
+                add_console_log(f"{side_emoji} Processing {token} {side} allocation: ${amount:.2f}", "info")
 
                 try:
                     if EXCHANGE == "HYPERLIQUID":
@@ -1806,72 +1850,79 @@ Return ONLY valid JSON with the following structure:
 
                     target_allocation = amount
 
-                    print(f"🎯 Target margin allocation: ${target_allocation:.2f} USD")
+                    print(f"🎯 Target margin allocation: ${target_allocation:.2f} USD ({side})")
                     print(f"📊 Current notional position: ${current_position:.2f} USD")
 
                     # Calculate effective trade size with leverage
-                    # For HyperLiquid: if target is $4 with 20x leverage, we buy $80 notional (only needs $4 margin)
-                    # For Solana: no leverage, so effective_value = target_allocation
                     if EXCHANGE in ["HYPERLIQUID", "ASTER"]:
                         effective_value = float(target_allocation) * LEVERAGE
-                        print(f"⚡ Target notional (with {LEVERAGE}x): ${effective_value:.2f} (margin: ${target_allocation:.2f})")
-                        add_console_log(f"⚡ {token} target: ${effective_value:.2f} notional | ${target_allocation:.2f} margin", "info")
+                        # For SHORT positions, use negative size
+                        if side == "SHORT":
+                            effective_value = -effective_value
+                        
+                        print(f"⚡ Target notional (with {LEVERAGE}x): ${abs(effective_value):.2f} (margin: ${target_allocation:.2f}) [{side}]")
+                        add_console_log(f"⚡ {token} target: ${abs(effective_value):.2f} notional | ${target_allocation:.2f} margin | {side}", "info")
                     else:
                         effective_value = float(target_allocation)  # Solana has no leverage
-                        print(f"💰 Trade size: ${effective_value:.2f}")
+                        if side == "SHORT":
+                            effective_value = -effective_value
+                        print(f"💰 Trade size: ${abs(effective_value):.2f} [{side}]")
 
-                    # Compare current notional position against target notional position
-                    if current_position < (effective_value * 0.97):  # 97% threshold to avoid small adjustments
-                        print(f"✨ Executing entry for {token}")
-                        add_console_log(f"✨ Opening {token} position", "info")
+                    # Check if we need to open/adjust position
+                    target_notional = abs(effective_value)
+                    
+                    # For SHORT positions, current_position will be negative on exchange
+                    # We need to check absolute values and direction
+                    if current_position < (target_notional * 0.97):  # 97% threshold
+                        print(f"✨ Executing {side} entry for {token}")
+                        add_console_log(f"✨ Opening {token} {side} position", "info")
 
                         if EXCHANGE == "HYPERLIQUID":
                             cprint(f"🔵 HyperLiquid: ai_entry({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "cyan")
-                            add_console_log(f"🔵 Executing: ai_entry({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
+                            add_console_log(f"🔵 Executing: ai_entry({token}, ${effective_value:.2f}, {LEVERAGE}x) [{side}]", "info")
+                            # Pass negative value for SHORT positions
                             n.ai_entry(token, effective_value, leverage=LEVERAGE, account=self.account)
                         elif EXCHANGE == "ASTER":
                             cprint(f"🟣 Aster: ai_entry({token}, ${effective_value:.2f}, leverage={LEVERAGE})", "cyan")
-                            add_console_log(f"🟣 Executing: ai_entry({token}, ${effective_value:.2f}, {LEVERAGE}x)", "info")
+                            add_console_log(f"🟣 Executing: ai_entry({token}, ${effective_value:.2f}, {LEVERAGE}x) [{side}]", "info")
                             n.ai_entry(token, effective_value, leverage=LEVERAGE)
                         else:
                             cprint(f"🟢 Solana: ai_entry({token}, ${effective_value:.2f})", "cyan")
-                            add_console_log(f"🟢 Executing: ai_entry({token}, ${effective_value:.2f})", "info")
+                            add_console_log(f"🟢 Executing: ai_entry({token}, ${effective_value:.2f}) [{side}]", "info")
                             n.ai_entry(token, effective_value)
 
-                        print(f"✅ Entry complete for {token}")
-                        add_console_log(f"✅ {token} position opened successfully", "success")
+                        print(f"✅ {side} entry complete for {token}")
+                        add_console_log(f"✅ {token} {side} position opened successfully", "success")
 
-                        # Record position entry in tracker for age-based decisions
+                        # Record position entry in tracker
                         if POSITION_TRACKER_AVAILABLE:
                             try:
-                                # Get entry price for tracking
                                 entry_price = 0.0
                                 try:
                                     raw_pos = n.get_position(token, self.account) if EXCHANGE == "HYPERLIQUID" else n.get_position(token)
                                     if raw_pos and len(raw_pos) > 4:
-                                        entry_price = raw_pos[4]  # entry_px
+                                        entry_price = raw_pos[4]
                                 except Exception:
                                     pass
 
                                 record_position_entry(
                                     symbol=token,
                                     entry_price=entry_price,
-                                    size=effective_value,
-                                    is_long=True  # Currently only LONG positions supported
+                                    size=abs(effective_value),
+                                    is_long=(side == "LONG")
                                 )
-                                cprint(f"   📝 Recorded {token} in position tracker", "cyan")
+                                cprint(f"   📍 Recorded {token} {side} in position tracker", "cyan")
                             except Exception as e:
                                 cprint(f"   ⚠️ Failed to record position: {e}", "yellow")
 
-                        # Log position open (using shared logging utility)
+                        # Log position open
                         try:
-                            # Log the actual notional value opened
-                            log_position_open(token, "LONG", effective_value)
+                            log_position_open(token, side, abs(effective_value))
                         except Exception:
                             pass
-                    elif current_position > (effective_value * 1.03):  # 103% threshold to avoid small adjustments
-                        # Need to REDUCE position
-                        reduction_amount = current_position - effective_value
+                            
+                    elif current_position > (target_notional * 1.03):  # 103% threshold
+                        reduction_amount = current_position - target_notional
 
                         if target_allocation == 0:
                             # Full close
@@ -1883,21 +1934,17 @@ Return ONLY valid JSON with the following structure:
                             else:
                                 n.chunk_kill(token, max_usd_order_size, slippage)
 
-                            # Remove from position tracker
                             if POSITION_TRACKER_AVAILABLE:
                                 remove_position(token)
-                                cprint(f"   📝 Removed {token} from position tracker", "cyan")
+                                cprint(f"   📍 Removed {token} from position tracker", "cyan")
 
                             print(f"✅ Position closed for {token}")
                         else:
-                            # CRITICAL: Partial reduction BLOCKED during position management
-                            # Position management is binary: KEEP (100%) or CLOSE (0%) only
-                            # Do NOT reduce positions partially - this prevents premature exits
-                            cprint(f"⏭️  Skipping partial reduction for {token}", "yellow")
+                            # Skip partial reduction
+                            cprint(f"⭐ Skipping partial reduction for {token}", "yellow")
                             cprint(f"   Current: ${current_position:.2f}, Target: ${target_allocation:.2f}", "white")
                             cprint(f"   💡 Position management is binary: KEEP or CLOSE only", "cyan")
-                            add_console_log(f"⏭️  {token} - Skipping partial reduction (position management = KEEP or CLOSE only)", "info")
-                            # Keep position as-is (100% allocation)
+                            add_console_log(f"⭐ {token} - Skipping partial reduction", "info")
                     else:
                         print(f"⏸️ Position already at target size for {token}")
                         add_console_log(f"⏸️ {token} already at target - no action", "info")
