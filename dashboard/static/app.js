@@ -3,6 +3,7 @@
 
 let updateInterval;
 let portfolioChart = null;
+let positionEventSource = null;
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', () => {
@@ -29,13 +30,56 @@ document.addEventListener('DOMContentLoaded', () => {
     updateConsole();
     updateTimestamp(); // Initialize timestamp with saved timezone
 
-    // Set up intervals
-    updateInterval = setInterval(updateDashboard, 10000); // Changed to 10000 (10s)
+    // Start SSE stream for real-time position updates
+    startPositionStream();
+
+    // Set up intervals (reduced frequency since positions use SSE)
+    updateInterval = setInterval(updateDashboard, 30000); // Account data every 30s
     setInterval(updateConsole, 10000);
     setInterval(updateTimestamp, 1000); // Update timestamp every second
 
-    console.log('✅ Dashboard ready - auto-refresh enabled');
+    console.log('✅ Dashboard ready - real-time positions via WebSocket');
 });
+
+// Start Server-Sent Events stream for real-time position updates
+function startPositionStream() {
+    if (positionEventSource) {
+        positionEventSource.close();
+    }
+
+    try {
+        positionEventSource = new EventSource('/api/positions/stream');
+
+        positionEventSource.onmessage = (event) => {
+            try {
+                const positions = JSON.parse(event.data);
+                if (!positions.error) {
+                    updatePositions(positions);
+                    console.log('[SSE] Position update received:', positions.length, 'positions');
+                }
+            } catch (e) {
+                console.error('[SSE] Parse error:', e);
+            }
+        };
+
+        positionEventSource.onerror = (error) => {
+            console.warn('[SSE] Connection error, will retry...');
+            // EventSource auto-reconnects, but we can add a fallback
+            if (positionEventSource.readyState === EventSource.CLOSED) {
+                setTimeout(startPositionStream, 5000);
+            }
+        };
+
+        positionEventSource.onopen = () => {
+            console.log('[SSE] Position stream connected');
+        };
+
+    } catch (e) {
+        console.error('[SSE] Failed to start stream:', e);
+        // Fall back to polling
+        console.log('[SSE] Falling back to polling');
+    }
+}
 
 
 // Main update function
@@ -512,6 +556,9 @@ function setStatusOffline() {
 // Auto-update cleanup
 window.addEventListener('beforeunload', () => {
     clearInterval(updateInterval);
+    if (positionEventSource) {
+        positionEventSource.close();
+    }
 });
 
 // ============================================================================
