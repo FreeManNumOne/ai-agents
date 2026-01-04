@@ -884,7 +884,7 @@ function populateProviderDropdowns() {
 // Get display name for provider
 function getProviderDisplayName(provider) {
     const names = {
-        'openrouter': 'OpenRouter (FREE Models Available)',
+        'openrouter': 'OpenRouter',
         'anthropic': 'Anthropic (Claude)',
         'openai': 'OpenAI',
         'gemini': 'Google Gemini',
@@ -893,9 +893,7 @@ function getProviderDisplayName(provider) {
         'mistral': 'Mistral AI',
         'cohere': 'Cohere',
         'perplexity': 'Perplexity',
-        'groq': 'Groq',
-        'ollama': 'Ollama (Local)',
-        'ollamafreeapi': 'OllamaFreeAPI (FREE)'
+        'groq': 'Grok'
     };
     return names[provider] || provider;
 }
