@@ -1429,142 +1429,210 @@ Return ONLY valid JSON with the following structure:
             import traceback
             traceback.print_exc()
 
-    def run_trading_cycle(self):
-        """Execute one complete trading cycle"""
+    def run_trading_cycle(self, strategy_signals=None):
+        """Enhanced trading cycle with position management and intelligence integration"""
         try:
-            cprint("\n" + "="*80, "blue")
-            cprint("🔄 TRADING CYCLE STARTED", "white", "on_blue", attrs=["bold"])
-            cprint("="*80, "blue")
-            
-            # Get account balance
-            account_balance = get_account_balance(self.account)
-            cprint(f"💰 Current Balance: ${account_balance:,.2f}", "cyan")
-            
-            # Fetch all open positions
-            open_positions = self.fetch_all_open_positions()
-            
-            # Collect market data for all symbols
-            cprint(f"\n📊 Collecting market data for {len(self.symbols)} symbols...", "yellow")
-            market_data = collect_all_tokens(
-                tokens=self.symbols,
-                timeframe=self.timeframe,
-                days_back=self.days_back
-            )
-            cprint("✅ Market data collection complete!", "green")
-            
-            # Analyze open positions with AI
-            if open_positions:
-                position_decisions = self.analyze_open_positions_with_ai(open_positions, market_data)
-                cprint(f"✅ Analyzed {len(position_decisions)} open positions", "green")
-            else:
-                position_decisions = {}
-                cprint("ℹ️ No open positions to analyze", "yellow")
-            
-            # Process position close decisions
-            for symbol, decision in position_decisions.items():
-                if decision.get("action", "").upper() == "CLOSE":
-                    cprint(f"🚪 Closing position for {symbol}...", "yellow")
-                    # Add position closing logic here
-                    # This would typically call exchange functions to close positions
-                    
-            # Analyze new trading opportunities
-            recommendations = []
-            for symbol in self.symbols:
-                try:
-                    if symbol in market_data and not market_data[symbol].empty:
-                        # Get strategy signals if available
-                        strategy_signals = None
-                        if INTELLIGENCE_AVAILABLE and self.strategy_agent:
-                            strategy_signals = get_strategy_signals(symbol, market_data[symbol])
-                        
-                        # Format market data for AI analysis
-                        market_context = self._format_market_data_for_swarm(symbol, market_data[symbol])
-                        
-                        # Build position context
-                        position_context = "NO CURRENT POSITION"
-                        if symbol in open_positions:
-                            pos_info = open_positions[symbol][0]  # First position
-                            position_context = f"CURRENT POSITION: {pos_info['side']} {abs(pos_info['size']):.4f} @ ${pos_info['entry_price']:.4f} (PnL: {pos_info['pnl_percent']:.2f}%)"
-                        
-                        # Build strategy context
-                        strategy_context = ""
-                        if strategy_signals:
-                            strategy_context = f"\nSTRATEGY SIGNALS:\n{json.dumps(strategy_signals, indent=2)}"
-                        
-                        # Build final prompt
-                        user_prompt = f"""
-{market_context}
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cprint(f"\n{'=' * 80}", "cyan")
+            cprint(f"🔄 TRADING CYCLE START: {current_time}", "white", "on_green", attrs=["bold"])
+            cprint(f"{'=' * 80}", "cyan")
 
-{position_context}
-{strategy_context}
-"""
-                        
-                        # Get AI decision
-                        if self.use_swarm_mode and self.swarm:
-                            cprint(f"🌊 Querying swarm for {symbol}...", "cyan")
-                            swarm_result = self.swarm.get_consensus(
-                                SWARM_TRADING_PROMPT,
-                                user_prompt,
-                                timeout=120
-                            )
-                            action, confidence, reasoning = self._calculate_swarm_consensus(swarm_result)
-                        else:
-                            cprint(f"🤖 Querying single model for {symbol}...", "cyan")
-                            response = self.chat_with_ai(TRADING_PROMPT, user_prompt)
-                            if response:
-                                lines = response.strip().split('\n')
-                                action_line = lines[0].strip().upper() if lines else "NOTHING"
-                                reasoning = '\n'.join(lines[1:]) if len(lines) > 1 else "No reasoning provided"
-                                
-                                if action_line.startswith("BUY"):
-                                    action = "BUY"
-                                elif action_line.startswith("SELL"):
-                                    action = "SELL"
-                                else:
-                                    action = "NOTHING"
-                                
-                                # Extract confidence if present
-                                confidence_match = re.search(r'(\d+)%', reasoning)
-                                confidence = int(confidence_match.group(1)) if confidence_match else 70
-                            else:
-                                action, confidence, reasoning = "NOTHING", 0, "No response from AI"
-                        
-                        recommendations.append({
-                            "token": symbol,
-                            "action": action,
-                            "confidence": confidence,
-                            "reasoning": reasoning
-                        })
-                        
-                        # Display decision
-                        action_color = "green" if action == "BUY" else "red" if action == "SELL" else "cyan"
-                        cprint(f"  📊 {symbol}: {action} ({confidence}%)", action_color)
-                        if reasoning:
-                            cprint(f"     💡 {reasoning[:100]}{'...' if len(reasoning) > 100 else ''}", "white")
-                    
-                except Exception as e:
-                    cprint(f"❌ Error analyzing {symbol}: {e}", "red")
-                    continue
-            
-            # Store recommendations in DataFrame
-            if recommendations:
-                self.recommendations_df = pd.DataFrame(recommendations)
-                cprint(f"\n✅ Generated {len(recommendations)} trading recommendations", "green")
-            else:
-                self.recommendations_df = pd.DataFrame(columns=["token", "action", "confidence", "reasoning"])
-                cprint("\n⚠️ No trading recommendations generated", "yellow")
-            
-            # Log cycle completion
-            cprint("\n" + "="*80, "blue")
-            cprint("✅ TRADING CYCLE COMPLETED", "white", "on_green", attrs=["bold"])
-            cprint("="*80, "blue")
-            add_console_log("Trading cycle completed successfully", "success")
-            
+            add_console_log(f"🔄 TRADING CYCLE STARTED", "info")
+
+            # CRITICAL FIX: Reset recommendations_df at the start of each cycle
+            self.recommendations_df = pd.DataFrame(
+                columns=["token", "action", "confidence", "reasoning"]
+            )
+            cprint("📋 Recommendations cleared for fresh cycle", "cyan")
+
+            # Check for stop signal
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
+
+            # STEP 0: DISPLAY VOLUME INTELLIGENCE SUMMARY (if available)
+            if INTELLIGENCE_AVAILABLE:
+                volume_summary = get_volume_summary()
+                if volume_summary and "No volume" not in volume_summary:
+                    cprint("\n📊 VOLUME INTELLIGENCE:", "white", "on_blue")
+                    cprint(volume_summary, "cyan")
+                    add_console_log("📊 Volume intelligence loaded", "info")
+
+            # STEP 1: FETCH ALL OPEN POSITIONS
+            add_console_log("Fetching open positions...", "info")
+            open_positions = self.fetch_all_open_positions()
+            add_console_log(f"Found {len(open_positions)} open position(s)", "info")
+
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
+
+            # STEP 2: COLLECT MARKET DATA
+            tokens_to_trade = self.symbols
+            add_console_log(f"📊 Collecting market data for {len(tokens_to_trade)} tokens...", "info")
+            cprint("📊 Collecting market data for analysis...", "white", "on_blue")
+
+            market_data = collect_all_tokens(
+                tokens=tokens_to_trade,
+                days_back=self.days_back,
+                timeframe=self.timeframe,
+                exchange=EXCHANGE,
+            )
+            add_console_log(f"Market data collected for {len(market_data)} tokens", "info")
+
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
+
+            # STEP 3: AI ANALYZES OPEN POSITIONS
+            close_decisions = {}
+            if open_positions:
+                close_decisions = self.analyze_open_positions_with_ai(open_positions, market_data)
+                if self.should_stop():
+                    add_console_log("ℹ️ Stop signal received - skipping position closes", "warning")
+                    return
+                self.execute_position_closes(close_decisions)
+
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
+
+            # STEP 4: REFETCH POSITIONS & MARKET DATA AFTER CLOSURES
+            time.sleep(2)
+            open_positions = self.fetch_all_open_positions()
+            cprint("📊 Refreshing market data after position updates...", "white", "on_blue")
+            market_data = collect_all_tokens(
+                tokens=tokens_to_trade,
+                days_back=self.days_back,
+                timeframe=self.timeframe,
+                exchange=EXCHANGE,
+            )
+
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
+
+            # STEP 5: ANALYZE TOKENS FOR NEW ENTRIES
+            cprint("\n📈 Analyzing tokens for new entry opportunities...", "white", "on_blue")
+            for token, data in market_data.items():
+                if self.should_stop():
+                    add_console_log(f"ℹ️ Stop signal received - stopping analysis at {token}", "warning")
+                    return
+
+                cprint(f"\n📊 Analyzing {token}...", "white", "on_green")
+                add_console_log(f"📊 Analyzing {token}...", "info")
+
+                if strategy_signals and token in strategy_signals:
+                    data["strategy_signals"] = strategy_signals[token]
+
+                analysis = self.analyze_market_data(token, data)
+                if analysis:
+                    print(f"\n📈 Analysis for {token}:")
+                    print(analysis)
+                    print("\n" + "=" * 50 + "\n")
+
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
+
+            # STEP 6: SHOW RECOMMENDATIONS
+            cprint("\n📊 AI TRADING RECOMMENDATIONS:", "white", "on_blue")
+            summary_df = self.recommendations_df[["token", "action", "confidence"]].copy()
+            print(summary_df.to_string(index=False))
+
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - skipping trade execution", "warning")
+                return
+
+            # ================================================================
+            # 🚀 UNIFIED EXECUTION - AI-DRIVEN ALLOCATION
+            # Works the same for both swarm and single mode
+            # ================================================================
+            try:
+                mode_name = "SWARM" if self.use_swarm_mode else "SINGLE"
+                cprint(f"\n{'=' * 80}", "yellow")
+                cprint(f"🚀 {mode_name} MODE — AI-Driven Allocation Pipeline", "white", "on_yellow", attrs=["bold"])
+                cprint(f"{'=' * 80}", "yellow")
+                add_console_log(f"🚀 {mode_name} mode — starting allocation pipeline", "info")
+
+                # Phase 1: Close contradictory positions (signals vs positions)
+                cprint("\n📌 PHASE 1: Exit Contradictory Positions", "yellow", attrs=["bold"])
+                self.handle_exits()
+
+                if self.should_stop():
+                    add_console_log("ℹ️ Stop signal received - skipping allocation", "warning")
+                    return
+
+                # Wait for exchange to process closes
+                cprint("⏳ Waiting for exchange to process...", "cyan")
+                time.sleep(3)
+
+                # Phase 2: AI-Driven Smart Allocation
+                cprint("\n📌 PHASE 2: AI Smart Allocation", "cyan", attrs=["bold"])
+                allocation_actions = self.allocate_portfolio()
+
+                if self.should_stop():
+                    add_console_log("ℹ️ Stop signal received - skipping execution", "warning")
+                    return
+
+                # Phase 3: Execute the AI allocation plan
+                if allocation_actions and isinstance(allocation_actions, list) and len(allocation_actions) > 0:
+                    cprint(f"\n📌 PHASE 3: Execute {len(allocation_actions)} Actions", "green", attrs=["bold"])
+                    self.execute_allocations(allocation_actions)
+                    cprint(f"\n✅ {mode_name} mode execution complete!", "green", attrs=["bold"])
+                    add_console_log(f"✅ {mode_name} execution complete", "success")
+                else:
+                    cprint("\nℹ️ No allocation actions to execute.", "yellow")
+                    add_console_log("ℹ️ No allocation actions generated", "info")
+
+            except Exception as exec_err:
+                cprint(f"❌ Execution pipeline failed: {exec_err}", "red")
+                import traceback
+                traceback.print_exc()
+                add_console_log(f"Execution error: {exec_err}", "error")
+
+            # STEP 8: FINAL PORTFOLIO REPORT
+            self.show_final_portfolio_report()
+
+            try:
+                if os.path.exists("temp_data"):
+                    for file in os.listdir("temp_data"):
+                        if file.endswith("_latest.csv"):
+                            os.remove(os.path.join("temp_data", file))
+            except Exception as e:
+                cprint(f"⚠️ Error cleaning temp data: {e}", "yellow")
+
+            cprint(f"\n{'=' * 80}", "cyan")
+            cprint("✅ TRADING CYCLE COMPLETE", "white", "on_green", attrs=["bold"])
+            add_console_log("✅ Trading cycle complete", "success")
+            cprint(f"{'=' * 80}\n", "cyan")
+
+            try:
+                account_balance = get_account_balance(self.account)
+            except Exception as e:
+                cprint(f"⚠️ Could not retrieve account balance: {e}", "yellow")
+                account_balance = 0.0
+
+            try:
+                invested_total = 0.0
+                positions = self.fetch_all_open_positions()
+                for symbol, pos_list in positions.items():
+                    for p in pos_list:
+                        size = abs(float(p.get("size", 0)))
+                        entry_price = float(p.get("entry_price", 0))
+                        invested_total += size * entry_price
+            except Exception as e:
+                cprint(f"⚠️ Could not calculate invested total: {e}", "yellow")
+                invested_total = 0.0
+
+            cprint(f"💰 Account Balance: ${account_balance:,.2f}", "cyan", attrs=["bold"])
+            cprint(f"🚀 Invested Total: ${invested_total:,.2f}", "cyan", attrs=["bold"])
+
         except Exception as e:
             cprint(f"\n❌ Error in trading cycle: {e}", "white", "on_red")
             import traceback
             traceback.print_exc()
-            add_console_log(f"Trading cycle failed: {str(e)}", "error")
+
 
 def main():
     """Main function - simple cycle every X minutes"""
@@ -1580,7 +1648,7 @@ def main():
 
             # Log next cycle time BEFORE sleeping
             next_run = datetime.now() + timedelta(minutes=SLEEP_BETWEEN_RUNS_MINUTES)
-            cprint(f"\n⏰ Next cycle at UTC: {next_run.strftime('%H:%M:%S')}", "white", "on_green")
+            cprint(f"\n⏰ Next cycle at UTC: {next_run.strftime('%d-%m-%Y %H:%M:%S')}", "white", "on_green")
             add_console_log(f"Next cycle in {SLEEP_BETWEEN_RUNS_MINUTES} minutes", "info")
 
             # Sleep until next cycle
