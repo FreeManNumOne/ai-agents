@@ -234,7 +234,7 @@ function updateAgentBadge(isRunning, isExecuting = false) {
     }
 }
 
-// Update positions display with 7 fields + action buttons
+// Update positions display with headers and inline buttons
 function updatePositions(positions) {
     const container = document.getElementById('positions');
     const badge = document.getElementById('position-count');
@@ -245,32 +245,42 @@ function updatePositions(positions) {
         return;
     }
     
-    container.innerHTML = positions.map(pos => `
-        <div class="position ${pos.side.toLowerCase()}">
-            <div class="position-item">
-                <span class="position-value">${pos.symbol}</span>
-            </div>
-            <div class="position-item">
-                <span class="position-value">${Math.abs(pos.size).toFixed(4)}</span>
-            </div>
-            <div class="position-item">
-                <span class="position-value">$${pos.position_value ? pos.position_value.toFixed(2) : '0.00'}</span>
-            </div>
-            <div class="position-item">
-                <span class="position-value">$${pos.entry_price.toFixed(2)}</span>
-            </div>
-            <div class="position-item">
-                <span class="position-value">$${pos.mark_price ? pos.mark_price.toFixed(2) : pos.entry_price.toFixed(2)}</span>
-            </div>
-            <div class="position-item">
-                <span class="position-value pnl ${pos.pnl_percent >= 0 ? 'positive' : 'negative'}">
-                    ${pos.pnl_percent >= 0 ? '+' : ''}$${((pos.mark_price - pos.entry_price) * Math.abs(pos.size)).toFixed(2)}
-                    <span style="font-size: 9px; opacity: 0.7; margin-left: 3px;">
-                        (${pos.pnl_percent >= 0 ? '+' : ''}${pos.pnl_percent.toFixed(2)}%)
+    container.innerHTML = positions.map(pos => {
+        const sideClass = pos.side.toLowerCase();
+        return `
+        <div class="position">
+            <div class="position-row">
+                <div class="position-item">
+                    <span class="position-label">Symbol</span>
+                    <span class="position-value symbol-${sideClass}">${pos.symbol}</span>
+                </div>
+                <div class="position-item">
+                    <span class="position-label">Size</span>
+                    <span class="position-value">${Math.abs(pos.size).toFixed(4)}</span>
+                </div>
+                <div class="position-item">
+                    <span class="position-label">Value</span>
+                    <span class="position-value">$${pos.position_value ? pos.position_value.toFixed(2) : '0.00'}</span>
+                </div>
+                <div class="position-item">
+                    <span class="position-label">Entry Price</span>
+                    <span class="position-value">$${pos.entry_price.toFixed(2)}</span>
+                </div>
+                <div class="position-item">
+                    <span class="position-label">Mark Price</span>
+                    <span class="position-value">$${pos.mark_price ? pos.mark_price.toFixed(2) : pos.entry_price.toFixed(2)}</span>
+                </div>
+                <div class="position-item">
+                    <span class="position-label">P&L</span>
+                    <span class="position-value pnl ${pos.pnl_percent >= 0 ? 'positive' : 'negative'}">
+                        ${pos.pnl_percent >= 0 ? '+' : ''}$${((pos.mark_price - pos.entry_price) * Math.abs(pos.size)).toFixed(2)}
+                        <span style="font-size: 9px; opacity: 0.7; margin-left: 4px;">
+                            (${pos.pnl_percent >= 0 ? '+' : ''}${pos.pnl_percent.toFixed(2)}%)
+                        </span>
                     </span>
-                </span>
+                </div>
             </div>
-            <div class="position-item position-actions">
+            <div class="position-actions-row">
                 <button class="btn-position-action btn-close-position" onclick="closePosition('${pos.symbol}')" title="Close Position">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                     Close
@@ -281,7 +291,8 @@ function updatePositions(positions) {
                 </a>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // Close a single position
