@@ -129,6 +129,11 @@ stop_agent_flag = False
 shutdown_in_progress = False
 stop_event = threading.Event()  # Event for clean shutdown signaling
 
+# Global variables for WebSocket position streaming
+websocket_positions = []
+websocket_positions_lock = threading.Lock()
+websocket_positions_updated = threading.Event()
+
 # Thread synchronization
 state_lock = threading.Lock()  # Lock for agent state variables
 # log_queue imported from src.utils.logging_utils
@@ -1180,20 +1185,55 @@ def stream_positions():
     def generate():
         import time
         last_positions = None
+        
+        # Set up WebSocket position listener
+        try:
+            from src.websocket import get_user_state_feed, is_websocket_connected
+            if is_websocket_connected():
+                user_feed = get_user_state_feed()
+                
+                def on_position_update(pos_data):
+                    # Signal that positions have been updated
+                    global websocket_positions, websocket_positions_lock
+                    with websocket_positions_lock:
+                        # Get all current positions
+                        all_positions = user_feed.get_positions_list()
+                        positions_json = json.dumps(all_positions)
+                        # Store in global variable for immediate access
+                        websocket_positions = all_positions
+                        websocket_positions_updated.set()
+                        # Yield the updated positions
+                        yield f"data: {positions_json}\n\n"
+                
+                # Add the listener to the user state feed
+                user_feed.add_dashboard_listener(on_position_update)
+        except ImportError:
+            print("⚠️ WebSocket module not available for streaming")
 
         while True:
             try:
-                positions = get_positions_data()
-                positions_json = json.dumps(positions)
-
-                # Only send if changed
-                if positions_json != last_positions:
-                    last_positions = positions_json
-                    yield f"data: {positions_json}\n\n"
-
-                # Check every 500ms for WebSocket updates
-                time.sleep(0.5)
-
+                # Check if we have WebSocket updates
+                if websocket_positions_updated.wait(timeout=0.1):
+                    # WebSocket update available
+                    with websocket_positions_lock:
+                        positions = websocket_positions[:]
+                        positions_json = json.dumps(positions)
+                        websocket_positions_updated.clear()
+                    
+                    # Only send if changed
+                    if positions_json != last_positions:
+                        last_positions = positions_json
+                        yield f"data: {positions_json}\n\n"
+                else:
+                    # No WebSocket update, get positions via API
+                    positions = get_positions_data()
+                    positions_json = json.dumps(positions)
+                    
+                    # Only send if changed
+                    if positions_json != last_positions:
+                        last_positions = positions_json
+                        yield f"data: {positions_json}\n\n"
+                        
             except GeneratorExit:
                 break
             except Exception as e:

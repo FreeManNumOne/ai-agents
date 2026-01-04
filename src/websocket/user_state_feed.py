@@ -217,6 +217,11 @@ class UserStateFeed:
         if callback not in self._on_position_update_callbacks:
             self._on_position_update_callbacks.append(callback)
 
+    def add_dashboard_listener(self, callback: Callable[[Dict], None]):
+        """Add a dashboard update listener"""
+        if callback not in self._on_position_update_callbacks:
+            self._on_position_update_callbacks.append(callback)
+
     def add_fill_listener(self, callback: Callable[[Dict], None]):
         """Add a fill listener"""
         if callback not in self._on_fill_callbacks:
