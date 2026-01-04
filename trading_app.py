@@ -983,19 +983,8 @@ def run_trading_agent():
         for i, model in enumerate(swarm_models, 1):
             add_console_log(f"  Model {i}: {model.get('provider')}/{model.get('model')}", "info")
 
-    # Import trading agent at the top of the function
-    try:
-        from src.agents.trading_agent import TradingAgent, EXCHANGE
-        trading_agent_module = "src.agents.trading_agent"
-    except ImportError:
-        try:
-            from src.agents.trading_agent import TradingAgent, EXCHANGE
-            trading_agent_module = "trading_agent"
-        except ImportError:
-            import sys
-            sys.path.insert(0, str(BASE_DIR / "src" / "agents"))
-            from src.agents.trading_agent import TradingAgent, EXCHANGE
-            trading_agent_module = "trading_agent (sys.path)"
+    # Import trading agent
+    from src.agents.trading_agent import TradingAgent, EXCHANGE
 
     add_console_log("Loaded trading_agent", "info")
     add_console_log(f"Using exchange {EXCHANGE}", "info")

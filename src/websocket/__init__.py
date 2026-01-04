@@ -40,9 +40,6 @@ from src.websocket.price_feed import PriceFeed, get_price_feed, get_current_pric
 from src.websocket.orderbook_feed import OrderBookFeed, get_orderbook_feed, get_l2_book_ws
 from src.websocket.user_state_feed import (
     UserStateFeed,
-    get_user_state_feed,
-    get_positions_realtime,
-    get_position_realtime,
     Position,
     Fill,
     AccountState,
@@ -88,9 +85,6 @@ __all__ = [
     'get_l2_book_ws',
     # User state feed
     'UserStateFeed',
-    'get_user_state_feed',
-    'get_positions_realtime',
-    'get_position_realtime',
     'Position',
     'Fill',
     'AccountState',
