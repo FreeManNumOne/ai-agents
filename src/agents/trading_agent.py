@@ -717,7 +717,7 @@ class TradingAgent:
             cprint("   💡 SELL signals can close longs OR open shorts", "white")
 
         cprint("\n✅ LLM Trading Agent initialized!", "green")
-        add_console_log("AI Agent initialized!", "success")
+        add_console_log("Agent initialized!", "success")
 
     def _build_swarm_models_config(self):
         """
@@ -742,8 +742,8 @@ class TradingAgent:
 
         custom_models = {}
         for i, model_config in enumerate(self.swarm_models_config, 1):
-            provider = model_config.get('provider', 'gemini')
-            model_name = model_config.get('model', 'gemini-2.5-flash')
+            provider = model_config.get('provider', 'openrouter')
+            model_name = model_config.get('model', 'nex-agi/deepseek-v3.1-nex-n1:free')
 
             # Create unique key for each model (e.g., "gemini_1", "openai_2")
             model_key = f"{provider}_{i}"
