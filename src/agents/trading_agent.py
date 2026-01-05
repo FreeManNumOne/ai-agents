@@ -2650,65 +2650,15 @@ Return ONLY valid JSON with the following structure:
 
             add_console_log(f"TRADING CYCLE STARTED", "info")
 
-            # CRITICAL FIX: Reset recommendations_df at the start of each cycle
             self.recommendations_df = pd.DataFrame(
                 columns=["token", "action", "confidence", "reasoning"]
             )
             cprint("📋 Recommendations cleared for fresh cycle", "cyan")
 
-            # Check for stop signal
             if self.should_stop():
                 add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
-            # STEP 0: DISPLAY VOLUME INTELLIGENCE SUMMARY (if available)
-            if INTELLIGENCE_AVAILABLE:
-                volume_summary = get_volume_summary()
-                if volume_summary and "No volume" not in volume_summary:
-                    cprint("\n📊 VOLUME INTELLIGENCE:", "white", "on_blue")
-                    cprint(volume_summary, "cyan")
-                    add_console_log("📊 Volume intelligence loaded", "info")
-
-            # STEP 1: FETCH ALL OPEN POSITIONS
-            add_console_log("Fetching open positions...", "info")
-            open_positions = self.fetch_all_open_positions()
-            add_console_log(f"Found {len(open_positions)} open position(s)", "info")
-
-            if self.should_stop():
-                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
-                return
-
-            # STEP 2: COLLECT MARKET DATA
-            tokens_to_trade = self.symbols
-            add_console_log(f"📊 Collecting market data for {len(tokens_to_trade)} tokens...", "info")
-            cprint("📊 Collecting market data for analysis...", "white", "on_blue")
-
-            market_data = collect_all_tokens(
-                tokens=tokens_to_trade,
-                days_back=self.days_back,
-                timeframe=self.timeframe,
-                exchange=EXCHANGE,
-            )
-            add_console_log(f"Market data collected for {len(market_data)} tokens", "info")
-
-            if self.should_stop():
-                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
-                return
-
-            # STEP 3: AI ANALYZES OPEN POSITIONS
-            close_decisions = {}
-            if open_positions:
-                close_decisions = self.analyze_open_positions_with_ai(open_positions, market_data)
-                if self.should_stop():
-                    add_console_log("ℹ️ Stop signal received - skipping position closes", "warning")
-                    return
-                self.execute_position_closes(close_decisions)
-
-            if self.should_stop():
-                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
-                return
-
-            # STEP 4: REFETCH POSITIONS & MARKET DATA AFTER CLOSURES
             time.sleep(2)
             open_positions = self.fetch_all_open_positions()
             cprint("📊 Refreshing market data after position updates...", "white", "on_blue")
@@ -2719,26 +2669,22 @@ Return ONLY valid JSON with the following structure:
                 exchange=EXCHANGE,
             )
 
-if self.should_stop():
+            if self.should_stop():
                 add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
-            # STEP 5: ANALYZE TOKENS FOR NEW ENTRIES
             cprint("\n📈 Analyzing tokens for new entry opportunities...", "white", "on_blue")
             
-            # Ensure we analyze all symbols, even if market_data is empty
             tokens_to_analyze = self.symbols
             if market_data:
-                # Use market data if available
                 for token in tokens_to_analyze:
                     if self.should_stop():
                         add_console_log(f"ℹ️ Stop signal received - stopping analysis at {token}", "warning")
-                        break  # Changed from return to break to continue with the rest of the cycle
+                        break
 
                     cprint(f"\n📊 Analyzing {token}...", "white", "on_green")
                     add_console_log(f"📊 Analyzing {token}...", "info")
 
-                    # Get market data for this token (may be None if not collected)
                     token_data = market_data.get(token)
                     if not token_data:
                         cprint(f"   ⚠️ No market data available for {token} - skipping analysis", "yellow")
@@ -2759,7 +2705,6 @@ if self.should_stop():
                         add_console_log(f"❌ Error analyzing {token}: {e}", "error")
                         continue
             else:
-                # No market data collected - log and continue
                 cprint("   ⚠️ No market data available - skipping token analysis", "yellow")
                 add_console_log("⚠️ No market data available - skipped token analysis", "warning")
 
@@ -2767,7 +2712,6 @@ if self.should_stop():
                 add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
-            # STEP 6: SHOW RECOMMENDATIONS
             cprint("\n📊 AI TRADING RECOMMENDATIONS:", "white", "on_blue")
             summary_df = self.recommendations_df[["token", "action", "confidence"]].copy()
             print(summary_df.to_string(index=False))
@@ -2776,18 +2720,13 @@ if self.should_stop():
                 add_console_log("ℹ️ Stop signal received - skipping trade execution", "warning")
                 return
 
-            # ================================================================
-            # 🚀 UNIFIED EXECUTION - AI-DRIVEN ALLOCATION
-            # Works the same for both swarm and single mode
-            # ================================================================
             try:
                 mode_name = "SWARM" if self.use_swarm_mode else "SINGLE"
                 cprint(f"\n{'=' * 80}", "yellow")
-                cprint(f"🚀 {mode_name} MODE — AI-Driven Allocation Pipeline", "white", "on_yellow", attrs=["bold"])
+                cprint(f"🚀 {mode_name} MODE – AI-Driven Allocation Pipeline", "white", "on_yellow", attrs=["bold"])
                 cprint(f"{'=' * 80}", "yellow")
-                add_console_log(f"{mode_name} mode — starting allocations", "info")
+                add_console_log(f"{mode_name} mode – starting allocations", "info")
 
-                # Phase 1: Close contradictory positions (signals vs positions)
                 cprint("\n📌 PHASE 1: Exit Contradictory Positions", "yellow", attrs=["bold"])
                 self.handle_exits()
 
@@ -2795,11 +2734,9 @@ if self.should_stop():
                     add_console_log("ℹ️ Stop signal received - skipping allocation", "warning")
                     return
 
-                # Wait for exchange to process closes
                 cprint("⏳ Waiting for exchange to process...", "cyan")
                 time.sleep(3)
 
-                # Phase 2: AI-Driven Smart Allocation
                 cprint("\n📌 PHASE 2: AI Smart Allocation", "cyan", attrs=["bold"])
                 allocation_actions = self.allocate_portfolio()
 
@@ -2807,7 +2744,6 @@ if self.should_stop():
                     add_console_log("ℹ️ Stop signal received - skipping execution", "warning")
                     return
 
-                # Phase 3: Execute the AI allocation plan
                 if allocation_actions and isinstance(allocation_actions, list) and len(allocation_actions) > 0:
                     cprint(f"\n📌 PHASE 3: Execute {len(allocation_actions)} Actions", "green", attrs=["bold"])
                     self.execute_allocations(allocation_actions)
@@ -2823,7 +2759,6 @@ if self.should_stop():
                 traceback.print_exc()
                 add_console_log(f"Execution error: {exec_err}", "error")
 
-            # STEP 8: FINAL PORTFOLIO REPORT
             self.show_final_portfolio_report()
 
             try:
@@ -2859,12 +2794,54 @@ if self.should_stop():
 
             cprint(f"💰 Account Balance: ${account_balance:,.2f}", "cyan", attrs=["bold"])
             cprint(f"🚀 Invested Total: ${invested_total:,.2f}", "cyan", attrs=["bold"])
-            return
 
         except Exception as e:
             cprint(f"\n❌ Error in trading cycle: {e}", "white", "on_red")
             import traceback
             traceback.print_exc()
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
+
+            if INTELLIGENCE_AVAILABLE:
+                volume_summary = get_volume_summary()
+                if volume_summary and "No volume" not in volume_summary:
+                    cprint("\n📊 VOLUME INTELLIGENCE:", "white", "on_blue")
+                    cprint(volume_summary, "cyan")
+                    add_console_log("📊 Volume intelligence loaded", "info")
+
+            add_console_log("Fetching open positions...", "info")
+            open_positions = self.fetch_all_open_positions()
+            add_console_log(f"Found {len(open_positions)} open position(s)", "info")
+
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
+
+            tokens_to_trade = self.symbols
+            add_console_log(f"📊 Collecting market data for {len(tokens_to_trade)} tokens...", "info")
+            cprint("📊 Collecting market data for analysis...", "white", "on_blue")
+
+            market_data = collect_all_tokens(
+                tokens=tokens_to_trade,
+                days_back=self.days_back,
+                timeframe=self.timeframe,
+                exchange=EXCHANGE,
+            )
+            add_console_log(f"Market data collected for {len(market_data)} tokens", "info")
+
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
+
+            close_decisions = {}
+            if open_positions:
+                close_decisions = self.analyze_open_positions_with_ai(open_positions, market_data)
+                if self.should_stop():
+                    add_console_log("ℹ️ Stop signal received - skipping position closes", "warning")
+                    return
+                self.execute_position_closes(close_decisions)
+
+            if self.should_stop():
 
 
 def main():
