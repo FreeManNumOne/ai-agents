@@ -1251,72 +1251,21 @@ async function getPositionsForChart() {
     }
 }
 
-// Update portfolio chart with WebSocket priority and proper equity calculation
 async function updatePortfolioChart() {
     try {
-        // Priority 1: Try to get account data from WebSocket (real-time)
-        let accountData = null;
-        let positions = [];
-
-        // Try to get account data from the main dashboard update (stored in memory)
-        // This would come from the /api/data response that's already fetched
-        // For now, we'll fetch it directly with priority to WebSocket data
+        // Get position data with fallback mechanism
+        const { positions, source } = await getPositionsForChart();
         
-        try {
-            const response = await fetch('/api/data');
-            if (response.ok) {
-                accountData = await response.json();
-                positions = accountData.positions || [];
-            }
-        } catch (apiError) {
-            console.warn('API data failed for portfolio chart:', apiError);
-        }
-
-        // If we have account data, use it for equity calculation
-        if (accountData && accountData.total_equity !== undefined && accountData.pnl !== undefined) {
-            // Calculate equity percentage change using account data
-            const startingBalance = 10.0; // Default starting balance
-            const equityChange = accountData.pnl;
-            const equityPercent = startingBalance > 0 ? ((equityChange / startingBalance) * 100) : 0;
-
-            // Validate the calculation to prevent NaN
-            const change = isNaN(equityPercent) || !isFinite(equityPercent) ? 0 : equityPercent;
-
-            const badge = document.getElementById('portfolio-change');
-            badge.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
-            badge.className = `badge ${change >= 0 ? 'positive' : 'negative'}`;
-
-            // Render chart with positions data (if available) or empty
-            if (positions && positions.length > 0) {
-                // Calculate total portfolio value from positions for the chart
-                let totalValue = 0;
-                positions.forEach(pos => {
-                    const positionValue = Math.abs(pos.size) * pos.mark_price;
-                    totalValue += positionValue;
-                });
-                
-                renderLayeredPositionChartFromData(positions, totalValue, change);
-            } else {
-                // No positions, show empty state
-                document.getElementById('portfolio-chart').innerHTML = '<div class="empty-state">No open positions</div>';
-            }
-
-            return;
-        }
-
-        // Priority 2: Fallback to position-based calculation if no account data
-        const { positions: fallbackPositions, source } = await getPositionsForChart();
-        
-        if (fallbackPositions.length === 0) {
+        if (positions.length === 0) {
             document.getElementById('portfolio-chart').innerHTML = '<div class="empty-state">No open positions</div>';
             return;
         }
 
-        // Calculate portfolio change from positions (fallback method)
+        // Calculate portfolio change from positions
         let totalValue = 0;
         let totalPnL = 0;
 
-        fallbackPositions.forEach(pos => {
+        positions.forEach(pos => {
             // Calculate position value and PnL
             const positionValue = Math.abs(pos.size) * pos.markPrice;
             const pnl = pos.pnl;
@@ -1325,61 +1274,18 @@ async function updatePortfolioChart() {
             totalPnL += pnl;
         });
 
-        // Calculate percentage change with validation
-        let change = 0;
-        if (totalValue > 0 && totalPnL !== 0) {
-            change = (totalPnL / totalValue) * 100;
-        }
-
-        // Validate the calculation to prevent NaN
-        change = isNaN(change) || !isFinite(change) ? 0 : change;
+        const change = totalValue > 0 ? ((totalPnL / totalValue) * 100) : 0;
 
         const badge = document.getElementById('portfolio-change');
         badge.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
         badge.className = `badge ${change >= 0 ? 'positive' : 'negative'}`;
 
         // Render layered position chart using position data
-        renderLayeredPositionChartFromData(fallbackPositions, totalValue, change);
+        renderLayeredPositionChartFromData(positions, totalValue, change);
 
     } catch (error) {
         console.error('Error updating pulse graph:', error);
-        
-        // Fallback to showing 0% if there's an error
-        const badge = document.getElementById('portfolio-change');
-        badge.textContent = '0.00%';
-        badge.className = 'badge';
-        
-        document.getElementById('portfolio-chart').innerHTML = '<div class="empty-state">Error loading chart</div>';
     }
-}
-
-// Helper function to validate and clamp coordinates
-function clampCoordinate(value, min, max) {
-    return Math.max(min, Math.min(max, value));
-}
-
-// Helper function to calculate safe price range
-function calculateSafePriceRange(positions) {
-    let minPrice = Infinity;
-    let maxPrice = -Infinity;
-    
-    positions.forEach(pos => {
-        minPrice = Math.min(minPrice, pos.entryPrice, pos.markPrice);
-        maxPrice = Math.max(maxPrice, pos.entryPrice, pos.markPrice);
-    });
-
-    let priceRange = maxPrice - minPrice;
-    
-    // Handle edge case where all prices are the same
-    if (priceRange === 0) {
-        // Create a small range around the price
-        const basePrice = minPrice;
-        minPrice = basePrice * 0.999;
-        maxPrice = basePrice * 1.001;
-        priceRange = maxPrice - minPrice;
-    }
-    
-    return { minPrice, maxPrice, priceRange };
 }
 
 function renderLayeredPositionChartFromData(positions, totalValue, totalPnLPercent) {
@@ -1394,15 +1300,22 @@ function renderLayeredPositionChartFromData(positions, totalValue, totalPnLPerce
     const leftBezel = width * bezelWidth;
     const rightBezel = width * bezelWidth;
     const chartAreaWidth = width * chartWidth;
-    const chartAreaHeight = height - (padding * 2);
 
     if (positions.length === 0) {
         container.innerHTML = '<div class="empty-state">No position data available</div>';
         return;
     }
 
-    // Calculate safe price range with validation
-    const { minPrice, maxPrice, priceRange } = calculateSafePriceRange(positions);
+    // Calculate price range for all positions
+    let minPrice = Infinity;
+    let maxPrice = -Infinity;
+    
+    positions.forEach(pos => {
+        minPrice = Math.min(minPrice, pos.entryPrice, pos.markPrice);
+        maxPrice = Math.max(maxPrice, pos.entryPrice, pos.markPrice);
+    });
+
+    const priceRange = maxPrice - minPrice;
 
     // Generate SVG with Equity/PnL header
     let svgContent = `
@@ -1421,41 +1334,30 @@ function renderLayeredPositionChartFromData(positions, totalValue, totalPnLPerce
                 </linearGradient>
     `;
 
-    // Calculate optimal horizontal spacing to prevent overflow
-    const maxLines = Math.floor(chartAreaWidth / 16); // Minimum 16px spacing
-    const safePositions = positions.slice(0, maxLines); // Limit positions to fit
-    const actualSpacing = chartAreaWidth / Math.max(1, safePositions.length);
-
-    // Draw each position as a line with proper coordinate system
-    safePositions.forEach((pos, index) => {
+    // Draw each position as a line with bezel layout
+    positions.forEach((pos, index) => {
         // Color based on PnL (not position direction)
         const hasPositivePnL = pos.pnl >= 0;
         const lineColor = hasPositivePnL ? 'var(--accent-green)' : 'var(--accent-red)';
         const gradientId = hasPositivePnL ? 'gradient-green' : 'gradient-red';
         
-        // Calculate y positions using proper SVG coordinate system (0 at top)
-        // Map price range to chart area height
-        const entryY = padding + ((pos.entryPrice - minPrice) / priceRange) * chartAreaHeight;
-        const markY = padding + ((pos.markPrice - minPrice) / priceRange) * chartAreaHeight;
+        // Calculate y positions
+        const entryY = height - padding - ((pos.entryPrice - minPrice) / priceRange) * (height - padding * 2);
+        const markY = height - padding - ((pos.markPrice - minPrice) / priceRange) * (height - padding * 2);
         
-        // Calculate x positions with safe spacing
-        const startX = leftBezel + (index * actualSpacing);
-        const endX = leftBezel + chartAreaWidth - (index * actualSpacing);
+        // Calculate x positions with bezel layout (5%-80%-5%)
+        // Left bezel: 5%, Chart area: 80%, Right bezel: 5%
+        const startX = leftBezel + (index * 8); // Small horizontal offset between lines
+        const endX = leftBezel + chartAreaWidth - (index * 8);
         
         // Calculate dot position at 75% mark on the right side of the chart area
         const dotX = leftBezel + (chartAreaWidth * 0.75);
         
-        // Validate and clamp coordinates to stay within bounds
-        const clampedEntryY = clampCoordinate(entryY, padding, height - padding);
-        const clampedMarkY = clampCoordinate(markY, padding, height - padding);
-        const clampedStartX = clampCoordinate(startX, leftBezel, leftBezel + chartAreaWidth);
-        const clampedEndX = clampCoordinate(endX, leftBezel, leftBezel + chartAreaWidth);
+        // Create line path
+        const pathD = `M ${startX} ${entryY} L ${endX} ${markY}`;
         
-        // Create line path with clamped coordinates
-        const pathD = `M ${clampedStartX} ${clampedEntryY} L ${clampedEndX} ${clampedMarkY}`;
-        
-        // Create area fill path with proper closure
-        const areaD = `${pathD} L ${clampedEndX} ${height - padding} L ${clampedStartX} ${height - padding} Z`;
+        // Create area fill path
+        const areaD = `${pathD} L ${endX} ${height} L ${startX} ${height} Z`;
 
         // Add shadow/glow effect
         const filterId = `shadow-${index}`;
@@ -1484,8 +1386,8 @@ function renderLayeredPositionChartFromData(positions, totalValue, totalPnLPerce
 
         // Draw entry point
         svgContent += `
-            <circle cx="${clampedStartX}"
-                    cy="${clampedEntryY}"
+            <circle cx="${startX}"
+                    cy="${entryY}"
                     r="3"
                     fill="${lineColor}"
                     filter="url(#${filterId})"/>
@@ -1493,8 +1395,8 @@ function renderLayeredPositionChartFromData(positions, totalValue, totalPnLPerce
 
         // Draw mark point
         svgContent += `
-            <circle cx="${clampedEndX}"
-                    cy="${clampedMarkY}"
+            <circle cx="${endX}"
+                    cy="${markY}"
                     r="3"
                     fill="${lineColor}"
                     filter="url(#${filterId})"/>
@@ -1503,7 +1405,7 @@ function renderLayeredPositionChartFromData(positions, totalValue, totalPnLPerce
         // Draw dot at 75% mark on the right side of chart area
         svgContent += `
             <circle cx="${dotX}"
-                    cy="${clampedMarkY}"
+                    cy="${markY}"
                     r="4"
                     fill="${lineColor}"
                     stroke="white"
