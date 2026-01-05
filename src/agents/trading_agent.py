@@ -205,8 +205,8 @@ DEFAULT_SWARM_MODE = False  # True = Swarm Mode (all Models), False = Single Mod
 # 🌊 SWARM CONSENSUS SETTINGS
 # Minimum confidence threshold for swarm consensus to execute a trade
 # If consensus confidence is below this threshold, default to NOTHING
-# Recommended: 55-65% (requires clear majority, not just a tie)
-MIN_SWARM_CONFIDENCE = 65  # 55% = requires at least slight majority (e.g., 3/5 models agree)
+# Recommended: 55-70% (requires clear majority, not just a tie)
+MIN_SWARM_CONFIDENCE = 70  # 70% = requires at least slight majority (e.g., 4/5 models agree)
 
 # 📈 TRADING MODE SETTINGS
 LONG_ONLY = False 
@@ -543,9 +543,17 @@ def get_account_balance(account=None):
 
 def calculate_position_size(account_balance):
     """Calculate position size based on account balance and MAX_POSITION_PERCENTAGE"""
+    # Minimum position size validation
+    MIN_POSITION_USD = 12.0  # HyperLiquid minimum order size
+
     if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
         margin_to_use = account_balance * (MAX_POSITION_PERCENTAGE / 100)
         notional_position = margin_to_use * LEVERAGE
+
+        # Check minimum position size
+        if notional_position < MIN_POSITION_USD:
+            cprint(f"⚠️ Position size ${notional_position:.2f} below minimum ${MIN_POSITION_USD}", "yellow")
+            return 0  # Skip position for very small tokens
 
         cprint(f"   📊 Position Calculation ({EXCHANGE}):", "yellow", attrs=['bold'])
         cprint(f"   💵 Account Balance: ${account_balance:,.2f}", "white")
@@ -558,6 +566,11 @@ def calculate_position_size(account_balance):
     else:
         # For Solana: No leverage, direct position size
         position_size = account_balance * (MAX_POSITION_PERCENTAGE / 100)
+
+        # Check minimum position size
+        if position_size < MIN_POSITION_USD:
+            cprint(f"⚠️ Position size ${position_size:.2f} below minimum ${MIN_POSITION_USD}", "yellow")
+            return 0  # Skip position for very small tokens
 
         cprint(f"   📊 Position Calculation (SOLANA):", "yellow", attrs=['bold'])
         cprint(f"   💵 USDC Balance: ${account_balance:,.2f}", "white")
@@ -1456,7 +1469,7 @@ Return ONLY valid JSON with the following structure:
         return validated_decisions
 
     def execute_position_closes(self, close_decisions):
-        """Execute closes for positions marked by AI"""
+        """Execute closes for positions marked by AI with enhanced reliability"""
         if not close_decisions:
             return
 
@@ -1468,32 +1481,40 @@ Return ONLY valid JSON with the following structure:
 
         for symbol, decision in close_decisions.items():
             if decision["action"] == "CLOSE":
-                try:
-                    cprint(f"\n   📉 Closing {symbol}...", "yellow")
-                    cprint(f"   💡 Reason: {decision['reasoning']}", "white")
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        cprint(f"\n   📉 Closing {symbol} (attempt {attempt + 1}/{max_retries})...", "yellow")
+                        cprint(f"   💡 Reason: {decision['reasoning']}", "white")
 
-                    close_result = n.close_complete_position(symbol, self.account)
+                        close_result = n.close_complete_position(symbol, self.account)
 
-                    if close_result:
-                        # Remove from position tracker
-                        if POSITION_TRACKER_AVAILABLE:
-                            remove_position(symbol)
-                            cprint(f"   📍 Removed {symbol} from position tracker", "cyan")
+                        if close_result:
+                            # Remove from position tracker
+                            if POSITION_TRACKER_AVAILABLE:
+                                remove_position(symbol)
+                                cprint(f"   📍 Removed {symbol} from position tracker", "cyan")
 
-                        cprint(f"✅ {symbol} position closed successfully", "green", attrs=["bold"])
-                        add_console_log(f"✅ Closed {symbol} | Reason: {decision['reasoning']}", "success")
+                            cprint(f"✅ {symbol} position closed successfully", "green", attrs=["bold"])
+                            add_console_log(f"✅ Closed {symbol} | Reason: {decision['reasoning']}", "success")
+                            closed_count += 1
+                            break  # Success, move to next symbol
+                        elif attempt < max_retries - 1:
+                            cprint(f"   ⚠️ Close attempt {attempt + 1} failed, retrying in 3 seconds...", "yellow")
+                            time.sleep(3)
+                        else:
+                            cprint(f"   ❌ Close failed after {max_retries} attempts", "red")
+                            add_console_log(f"❌ Close failed for {symbol} after {max_retries} attempts", "error")
 
-                        closed_count += 1
-                    else:
-                        cprint(f"   ⚠️ Position close returned False for {symbol}", "yellow")
-                        add_console_log(f"⚠️ Close may have failed for {symbol}", "warning")
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            cprint(f"   ⚠️ Close attempt {attempt + 1} error: {e}, retrying in 3 seconds...", "yellow")
+                            time.sleep(3)
+                        else:
+                            cprint(f"   ❌ Close failed after {max_retries} attempts: {e}", "red")
+                            add_console_log(f"❌ Close failed for {symbol}: {e}", "error")
 
-                    time.sleep(2)
-
-                except Exception as e:
-                    cprint(f"   ❌ Error closing {symbol}: {e}", "red")
-                    import traceback
-                    traceback.print_exc()
+                time.sleep(2)  # Rate limiting between symbols
 
         if closed_count > 0:
             cprint(
@@ -2032,30 +2053,41 @@ Return ONLY valid JSON with the following structure:
             cprint("   No signals after filtering.", "cyan")
             return []
 
-        margin_per_position = (usable_margin - cash_buffer) / len(new_signals)
-        min_margin = 12 / LEVERAGE
-
-        if margin_per_position < min_margin:
-            # Take only highest confidence signals
-            new_signals.sort(key=lambda x: x["confidence"], reverse=True)
-            max_positions = int((usable_margin - cash_buffer) / min_margin)
-            new_signals = new_signals[:max(1, max_positions)]
-
-            # Prevent division by zero after filtering
-            if len(new_signals) == 0:
-                cprint("   Insufficient margin for any positions.", "yellow")
-                return []
-
+        # Calculate weighted allocation based on confidence
+        total_confidence = sum(sig["confidence"] for sig in new_signals)
+        
+        # Handle edge case where all confidences are zero
+        if total_confidence == 0:
+            # Fall back to equal distribution
             margin_per_position = (usable_margin - cash_buffer) / len(new_signals)
+        else:
+            # Use confidence-weighted allocation
+            margin_per_position = (usable_margin - cash_buffer)
 
+        min_margin = 12 / LEVERAGE
         actions = []
+
         for sig in new_signals:
             action_type = "OPEN_LONG" if sig["action"] == "BUY" else "OPEN_SHORT"
+            
+            # Calculate confidence-weighted margin
+            if total_confidence > 0:
+                confidence_weight = sig["confidence"] / total_confidence
+                margin_usd = margin_per_position * confidence_weight
+            else:
+                # Equal distribution fallback
+                margin_usd = margin_per_position
+
+            # Ensure minimum margin requirement
+            if margin_usd < min_margin:
+                cprint(f"   ⚠️ {sig['symbol']} allocation ${margin_usd:.2f} below minimum ${min_margin:.2f}", "yellow")
+                continue
+
             actions.append({
                 "symbol": sig["symbol"],
                 "action": action_type,
-                "margin_usd": round(margin_per_position, 2),
-                "reason": f"Fallback: {sig['action']} signal ({sig['confidence']}% confidence)"
+                "margin_usd": round(margin_usd, 2),
+                "reason": f"Confidence-weighted: {sig['action']} signal ({sig['confidence']}% confidence)"
             })
 
         return actions
