@@ -261,15 +261,6 @@ function updatePositions(positions) {
                 <div class="position-item">
                     <span class="position-label">Value</span>
                     <span class="position-value">$${pos.position_value ? pos.position_value.toFixed(2) : '0.00'}</span>
-                <div class="position-item">
-                    <span class="position-label">P&L</span>
-                    <span class="position-value pnl ${pos.pnl_percent >= 0 ? 'positive' : 'negative'}">
-                        ${pos.pnl_percent >= 0 ? '+' : '-'}$${Math.abs((pos.mark_price - pos.entry_price) * pos.size).toFixed(2)}
-                        <span style="font-size: 9px; opacity: 0.7; margin-left: 4px;">
-                            (${pos.pnl_percent >= 0 ? '+' : ''}${pos.pnl_percent.toFixed(2)}%)
-                        </span>
-                    </span>
-                </div>
                 </div>
                 <div class="position-item">
                     <span class="position-label">Entry Price</span>
@@ -279,7 +270,15 @@ function updatePositions(positions) {
                     <span class="position-label">Mark Price</span>
                     <span class="position-value">$${pos.mark_price ? pos.mark_price.toFixed(2) : pos.entry_price.toFixed(2)}</span>
                 </div>
-                
+                <div class="position-item">
+                    <span class="position-label">P&L</span>
+                    <span class="position-value pnl ${pos.pnl_percent >= 0 ? 'positive' : 'negative'}">
+                        ${pos.pnl_percent >= 0 ? '+' : '-'}$${Math.abs((pos.mark_price - pos.entry_price) * pos.size).toFixed(2)}
+                        <span style="font-size: 9px; opacity: 0.7; margin-left: 4px;">
+                            (${pos.pnl_percent >= 0 ? '+' : ''}${pos.pnl_percent.toFixed(2)}%)
+                        </span>
+                    </span>
+                </div>
             </div>
             <div class="position-actions-row">
                 <button class="btn-position-action btn-close-position" onclick="closePosition('${pos.symbol}')" title="Close Position">
