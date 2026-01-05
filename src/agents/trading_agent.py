@@ -2455,7 +2455,7 @@ Return ONLY valid JSON with the following structure:
         """Run the trading agent (implements BaseAgent interface)"""
         self.run_trading_cycle()
 
-def run_trading_cycle(self, strategy_signals=None):
+    def run_trading_cycle(self, strategy_signals=None):
         """Enhanced trading cycle with position management and intelligence integration"""
         try:
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
