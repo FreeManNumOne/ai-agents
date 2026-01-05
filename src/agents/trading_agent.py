@@ -1103,7 +1103,7 @@ FULL DATASET:
                             "entry_price": entry_px,
                             "pnl_percent": pnl_perc,
                             "is_long": is_long,
-                            "side": "LONG 🟢" if is_long else "SHORT 🔴",
+                            "side": "LONG" if is_long else "SHORT",
                             "age_hours": age_hours,
                         }
 
@@ -2347,7 +2347,7 @@ Return ONLY valid JSON with the following structure:
 
             if im_in_pos and pos_size != 0:
                 # ============= CASE: HAVE POSITION =============
-                position_dir = "LONG 🟢" if is_long else "SHORT 🔴"
+                position_dir = "LONG" if is_long else "SHORT"
                 cprint(f"💼 Current Position: {position_dir} | Size: {abs(pos_size):.4f} | PnL: {pnl_perc:.2f}%", "white")
                 cprint(f"{'=' * 60}", "cyan")
 
@@ -2478,7 +2478,7 @@ Return ONLY valid JSON with the following structure:
                 _, im_in_pos, pos_size, _, entry_px, pnl_perc, is_long = pos_data
 
                 if im_in_pos and pos_size != 0:
-                    side_icon = "LONG 🟢" if is_long else "SHORT 🔴"
+                    side_icon = "LONG" if is_long else "SHORT"
                     entry_str = f"${entry_px:.2f}" if entry_px != 0 else "-"
                     pnl_str = f"{pnl_perc:+.2f}%" if pnl_perc != 0 else "-"
 
