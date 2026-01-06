@@ -206,7 +206,7 @@ DEFAULT_SWARM_MODE = False  # True = Swarm Mode (all Models), False = Single Mod
 # Minimum confidence threshold for swarm consensus to execute a trade
 # If consensus confidence is below this threshold, default to NOTHING
 # Recommended: 55-65% (requires clear majority, not just a tie)
-MIN_SWARM_CONFIDENCE = 65  # 55% = requires at least slight majority (e.g., 3/5 models agree)
+MIN_SWARM_CONFIDENCE = 70  # 55% = requires at least slight majority (e.g., 3/5 models agree)
 
 # 📈 TRADING MODE SETTINGS
 LONG_ONLY = False 
@@ -233,13 +233,13 @@ AI_MAX_TOKENS = 8024   # Increased for multi-step reasoning
 
 # 💰 POSITION SIZING & RISK MANAGEMENT
 USE_PORTFOLIO_ALLOCATION = True 
-MAX_POSITION_PERCENTAGE = 90      
-LEVERAGE = 20                     
+MAX_POSITION_PERCENTAGE = 80      
+LEVERAGE = 10                     
 
 # Stop Loss & Take Profit
 STOP_LOSS_PERCENTAGE = 2.0      # SL @ -2% PnL
 TAKE_PROFIT_PERCENTAGE = 5.0    # TP @ +5% PnL 
-PNL_CHECK_INTERVAL = 5          # check PnL every 5 minutes          
+PNL_CHECK_INTERVAL = 1          # check PnL every 5 minutes          
 
 # Legacy settings 
 usd_size = 25                  
