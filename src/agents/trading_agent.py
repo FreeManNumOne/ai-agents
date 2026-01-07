@@ -420,7 +420,7 @@ AI TRADING SIGNALS:
 {signals}
 
 ACCOUNT INFO:
-- Available Balance: ${available_balance:.2f}
+- Available Equity: ${total_equity:.2f}
 - Leverage: {leverage}x
 - Max Position %: {max_position_pct}%
 - Cash Buffer: {cash_buffer_pct}%
