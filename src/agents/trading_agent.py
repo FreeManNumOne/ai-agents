@@ -246,8 +246,8 @@ LEVERAGE = 10
 
 # Stop Loss & Take Profit
 STOP_LOSS_PERCENTAGE = 1.5      # SL @ -1.5% PnL
-TAKE_PROFIT_PERCENTAGE = 2.5    # TP @ +2.5% PnL 
-PNL_CHECK_INTERVAL = 1          # check PnL every 1 minutes          
+TAKE_PROFIT_PERCENTAGE = 4.5    # TP @ +4.5% PnL 
+PNL_CHECK_INTERVAL = 1          # check PnL every 5 minutes          
 
 # Legacy settings 
 usd_size = 25                  
@@ -420,9 +420,7 @@ AI TRADING SIGNALS:
 {signals}
 
 ACCOUNT INFO:
-ACCOUNT INFO:
-- Total Equity: ${total_equity:.2f} (includes positions)
-- Available Balance: ${available_balance:.2f} (actual available USDC balance)
+- Available Balance: ${available_balance:.2f}
 - Leverage: {leverage}x
 - Max Position %: {max_position_pct}%
 - Cash Buffer: {cash_buffer_pct}%
@@ -1859,9 +1857,9 @@ Return ONLY valid JSON with the following structure:
                 cprint("❌ Account balance is zero. Cannot allocate.", "red")
                 return []
 
-            # CRITICAL FIX: Use total equity including existing positions
-            account_balance = get_account_balance(self.account)  # Free USDC
-            total_equity = n.get_account_value(self.address)  # Total equity
+            # CRITICAL FIX: Calculate total equity including existing positions
+            total_equity = account_balance + total_position_value
+            available_balance = account_balance - total_position_value
             min_order_notional = 12.0  # HyperLiquid minimum
 
             cprint(f"💰 Account Balance (USDC): ${account_balance:.2f}", "cyan")
