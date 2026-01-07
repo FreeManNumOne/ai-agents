@@ -1857,9 +1857,8 @@ Return ONLY valid JSON with the following structure:
                 cprint("❌ Account balance is zero. Cannot allocate.", "red")
                 return []
 
-            # CRITICAL FIX: Calculate total equity including existing positions
-            total_equity = account_balance + total_position_value
-            available_balance = account_balance - total_position_value
+            # CRITICAL FIX: Use total equity including existing positions
+            total_equity = n.get_account_value(self.address)  # True equity with PnL
             min_order_notional = 12.0  # HyperLiquid minimum
 
             cprint(f"💰 Account Balance (USDC): ${account_balance:.2f}", "cyan")
