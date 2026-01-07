@@ -1,5 +1,5 @@
 """
-🌙  LLM Trading Agent 🌙
+LLM Trading Agent
 
 DUAL-MODE AI TRADING SYSTEM:
 
@@ -8,7 +8,7 @@ SINGLE MODEL MODE (Fast - ~10 seconds per token):
    - Best for: Fast execution, high-frequency strategies
    - Configure model in config.py: AI_MODEL_TYPE and AI_MODEL_NAME
 
-🌊 SWARM MODE (Consensus - ~45-60 seconds per token):
+SWARM MODE (Consensus - ~45-60 seconds per token):
    - Queries 6 AI models simultaneously for consensus voting
    - Models vote: "Buy", "Sell", or "Do Nothing"
    - Majority decision wins with confidence percentage
@@ -54,14 +54,6 @@ from src.data.ohlcv_collector import collect_all_tokens
 from src.agents.strategy_agent import StrategyAgent
 
 # Import shared logging utility (prevents circular import with trading_app)
-
-# Import TP/SL utility for background monitoring
-try:
-    from src.utils.take_profit_stop_loss import run_tp_sl_monitor
-    TP_SL_MONITOR_AVAILABLE = True
-except ImportError:
-    TP_SL_MONITOR_AVAILABLE = False
-    cprint("⚠️ TP/SL monitor not available", "yellow")
 try:
     from src.utils.logging_utils import add_console_log, log_position_open
 except ImportError:
@@ -214,7 +206,7 @@ DEFAULT_SWARM_MODE = False  # True = Swarm Mode (all Models), False = Single Mod
 # Minimum confidence threshold for swarm consensus to execute a trade
 # If consensus confidence is below this threshold, default to NOTHING
 # Recommended: 55-65% (requires clear majority, not just a tie)
-MIN_SWARM_CONFIDENCE = 70  # 55% = requires at least slight majority (e.g., 3/5 models agree)
+MIN_SWARM_CONFIDENCE = 65  # 55% = requires at least slight majority (e.g., 3/5 models agree)
 
 # 📈 TRADING MODE SETTINGS
 LONG_ONLY = False 
@@ -241,13 +233,13 @@ AI_MAX_TOKENS = 8024   # Increased for multi-step reasoning
 
 # 💰 POSITION SIZING & RISK MANAGEMENT
 USE_PORTFOLIO_ALLOCATION = True 
-MAX_POSITION_PERCENTAGE = 80      
-LEVERAGE = 10                     
+MAX_POSITION_PERCENTAGE = 90      
+LEVERAGE = 20                     
 
 # Stop Loss & Take Profit
-STOP_LOSS_PERCENTAGE = 1.5      # SL @ -1.5% PnL
-TAKE_PROFIT_PERCENTAGE = 4.5    # TP @ +4.5% PnL 
-PNL_CHECK_INTERVAL = 1          # check PnL every 5 minutes          
+STOP_LOSS_PERCENTAGE = 2.0      # SL @ -2% PnL
+TAKE_PROFIT_PERCENTAGE = 5.0    # TP @ +5% PnL 
+PNL_CHECK_INTERVAL = 5          # check PnL every 5 minutes          
 
 # Legacy settings 
 usd_size = 25                  
@@ -420,13 +412,12 @@ AI TRADING SIGNALS:
 {signals}
 
 ACCOUNT INFO:
-- Available Balance: ${available_balance:.2f} (free to allocate)
+- Available Balance: ${available_balance:.2f}
 - Leverage: {leverage}x
 - Max Position %: {max_position_pct}%
 - Cash Buffer: {cash_buffer_pct}%
 - Minimum Order: ${min_order:.2f} notional
 - Trading Cycle: Every {cycle_minutes} minutes (MINIMUM HOLD TIME)
-- Total Equity: ${total_equity:.2f} (includes positions)
 
 YOUR TASK:
 Analyze the current positions and AI signals to create an OPTIMAL allocation plan.
@@ -2860,21 +2851,6 @@ def main():
     print("🛑 Press Ctrl+C to stop.\n")
 
     agent = TradingAgent()
-
-    # Start TP/SL monitor as background thread if available
-    tp_sl_thread = None
-    if TP_SL_MONITOR_AVAILABLE and agent.account:
-        try:
-            import threading
-            tp_sl_thread = threading.Thread(
-                target=run_tp_sl_monitor, 
-                args=(agent.account, 30),
-                daemon=True
-            )
-            tp_sl_thread.start()
-            cprint("✅ TP/SL Monitor started in background", "green")
-        except Exception as e:
-            cprint(f"⚠️ Could not start TP/SL monitor: {e}", "yellow")
 
     while True:
         try:
